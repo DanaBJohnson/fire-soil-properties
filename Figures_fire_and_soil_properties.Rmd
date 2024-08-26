@@ -1,0 +1,3453 @@
+---
+title: "Figures for manuscript on the effect of fire on soil properties"
+author: "Dana B. Johnson"
+date: '2023-06-28'
+output: html_document
+always_allow_html: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE)
+# options(digits=2) 
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(car)
+library(multcompView)
+library(knitr)
+
+options(kableExtra.auto_format = FALSE)
+library(kableExtra)
+
+# Burn treatment labels and colors:
+burn_duration_labels = c('Unburned','30 s \nburn','120 s \nburn')
+names(burn_duration_labels) = c('0','30','120')
+
+burn_duration_colors = c('black','orange2','red3')
+names(burn_duration_colors) = c('0','30','120')
+
+# Burn treatment labels and colors for temperature data (i.e. excluding unburned):
+Temp_burn_duration_labels = c('30 s \nburn','120 s \nburn')
+names(Temp_burn_duration_labels) = c('30','120')
+
+Temp_burn_duration_colors = c('orange2','red3')
+names(Temp_burn_duration_colors) = c('30','120')
+
+
+# Thermocouple labels and colors:
+ThermoPositions_labels = c('O-Mnrl interface','Core base','Midpoint')
+names(ThermoPositions_labels) = c('U','L','M')
+
+ThermoPositions_colors = c('grey20','grey40','grey60')
+names(ThermoPositions_colors) = c('U','L','M')
+
+
+# Dominate vegetation labels and colors: 
+Vegetation_labels = c('Picea spp.', 'Pinus banksiana')
+names(Vegetation_labels) = c('Picea_spp.','Pinus_banksiana')
+
+Vegetation_colors = c('black', 'grey')
+names(Vegetation_colors) = c('Picea_spp.','Pinus_banksiana')
+
+
+# Soil horizon labels and colors:
+Horizon_labels = c('O horizon','Mineral soil')
+names(Horizon_labels) = c('O','M')
+
+Horizon_colors = c('green','black')
+names(Horizon_colors) = c('O','M')
+
+
+# Site type labels and colors:
+SiteType_labels = c('Organic sites','Sandy sites')
+names(SiteType_labels) = c('ORG','SANDY')
+
+SiteType_colors = c('green','purple')
+names(SiteType_colors) = c('ORG','SANDY')
+
+
+# Soil type labels and colors:
+SoilType_labels = c('Organic soil','Sandy sites, O horizon', 'Sandy sites, mineral soil')
+names(SoilType_labels) = c('ORG-O','SANDY-O', 'SANDY-M')
+
+SoilType_colors = c('green','purple', 'blue')
+names(SoilType_colors) = c('ORG-O','SANDY-O', 'SANDY-M')
+
+
+# Incubation labels and colors:
+Incubation_labels = c('2 days','24 days','42 days','70 days')
+names(Incubation_labels) = c('2','14','42','70')
+
+Incubation_colors = c('grey15','grey35','grey60', 'grey90')
+names(Incubation_colors) = c('2','14','42','70')
+
+n=1
+m=1
+
+# Bring in metadata:
+df.meta <- read.csv('../data/metadata.csv')
+colnames(df.meta)[1] <- 'sample.id'
+
+# Add texture data:
+df.texture <- read.csv('../data/soil-properties/soil-texture.csv')
+
+df.meta <- df.meta %>% merge(df.texture, by = c('site','horizon'))
+
+for (i in 1:nrow(df.meta)) {
+  if (df.meta$vegetation[i] =='Picea_spp.') {
+    df.meta$site.type[i] = 'ORG'
+  } else if (df.meta$vegetation[i] == 'Pinus_banksiana') {
+    df.meta$site.type[i] = 'SANDY'
+  }
+}
+```
+
+## Working titles:
+
+* Impact of fire on soil environment and resulting decrease in soil respiration
+* Fire alters soil properties and decreases soil respiration
+* The Effect of fire and fire-induced changes in soil properties on post-burn soil respiration
+
+## Authors: 
+
+Dana B. Johnson$^1$, Kara M. Yedinak$^2$, Benjamin N. Sulman$^3$, Timothy D. Berry$^1$, Kelsey Kruger$^1$, Thea Whitman$^1$
+
+$^1$University of Wisconsin-Madison, Madison, WI; $^2$Forest Products Laboratory, USDA Forest Service, Madison, WI; $^3$Oak Ridge National Laboratory, Oak Ridge, TN
+
+## Abstract
+
+## Keywords 
+
+## Introduction
+
+## Methods
+
+![Figure 1. Experimental   design. Soil cores were collected from 12 sites within Wood Buffalo National Park (top right), which is located at the northern border of Alberta, CA (top left). Soil cores were subjected to laboratory burn simulations (unburned, 30 s burn treatment duration, and 120 s burn treatment duration). Soil CO2 efflux from burned and unburned soil was measured for 70 days.](Method-figure-draft-images/Methods-figure-and-map.png){width=1000}
+
+
+## Results
+
+### The effect of burning on soil temperature varied with soil type and burn treatment duration.
+
+```{r, echo = FALSE, warning = FALSE}
+
+# Import raw data
+df.Temp.decimated <- read.csv('../data/burn-simulations/Output-files/Compiled-decimated-temperature-all-cores.csv')
+
+# Filter time series remove instances of temperature increases or decreases of
+#   >100 units 
+df.Temp.clean <- df.Temp.decimated %>%
+  group_by(core.id, thermocouple_position) %>%
+  mutate(NeighborLag = c(NA,diff(temperature.C,lag=1)),
+         NeighborLead = c(diff(temperature.C,lead=1),NA)) %>%
+  subset(!(abs(NeighborLag) >100) & !(abs(NeighborLead) >100))
+
+### PLOTS: 
+# Take one data point per minute (to make it faster to graph)
+# df.Temp.decimated <- read.csv('../Box/WhitmanLab/Projects/WoodBuffalo/ModellingFires_DOE_TES/data/burn-simulations/Output-files/Compiled-decimated-temperature-all-cores.csv')
+
+df.Temp.filtered <- df.Temp.clean %>%
+  filter((run.time.sec/60) %% 1 == 0) %>%
+  subset(run.time.sec/3600 < 7)
+
+# import vegetation and burn treatment information
+df.duration <- read.csv('../data/burn-simulations/core-prep.csv')
+
+df.duration <- df.duration %>%
+  subset(select = c(core.id, vegetation, duration.s)) %>%
+  separate(core.id, c('year','project','site','core'), sep = '-', remove = TRUE) %>%
+  unite('core.id', c(site,core), sep='-', remove = TRUE)
+
+# merge temperature and veg.+ burn treatment data frames:
+df.Temp.plot <- merge(df.Temp.filtered, df.duration, by = 'core.id') %>%
+  merge((subset(df.meta, select = c(site, site.type)) %>%unique()))
+
+# Re order the thermocouples:
+df.Temp.plot$thermocouple_position <- factor(df.Temp.plot$thermocouple_position, levels = c('U','M','L'))
+```
+
+```{r, echo = FALSE, warning = FALSE}
+### Organic sites ###
+
+# Max O horizon temp:
+df.Temp.max <- df.Temp.plot %>%
+  group_by(core.id, thermocouple_position, duration.s) %>%
+  mutate(max.temp.C = max(temperature.C)) %>%
+  subset(select = c(core.id, site, duration.s,
+                    thermocouple_position,
+                    site.type,max.temp.C)) %>% 
+  unique()
+
+# Calculate maximum and sd for temperatures at each thermocouple
+ORG_120U_temp_mean = mean(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U' & duration.s == 120)$max.temp.C)
+ORG_120U_temp_sd = sd(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U' & duration.s == 120)$max.temp.C)
+ORG_120U_temp_upper_range = max(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U' & duration.s == 120)$max.temp.C)
+ORG_120U_temp_lower_range = min(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U'& duration.s == 120)$max.temp.C)
+
+
+ORG_30U_temp_mean = mean(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U' & duration.s == 30)$max.temp.C)
+ORG_30U_temp_sd = sd(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U' & duration.s == 30)$max.temp.C)
+ORG_30U_temp_upper_range = max(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U' & duration.s == 30)$max.temp.C)
+ORG_30U_temp_lower_range = min(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'U'& duration.s == 30)$max.temp.C)
+
+### Min O horizon temp:
+
+# Sandy sites
+SANDY_120U_temp_mean = mean(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U' & duration.s == 120)$max.temp.C)
+SANDY_120U_temp_sd = sd(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U' & duration.s == 120)$max.temp.C)
+SANDY_120U_temp_upper_range = max(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U' & duration.s == 120)$max.temp.C)
+SANDY_120U_temp_lower_range = min(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U'& duration.s == 120)$max.temp.C)
+
+
+SANDY_30U_temp_mean = mean(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U' & duration.s == 30)$max.temp.C)
+SANDY_30U_temp_sd = sd(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U' & duration.s == 30)$max.temp.C)
+SANDY_30U_temp_upper_range = max(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U' & duration.s == 30)$max.temp.C)
+SANDY_30U_temp_lower_range = min(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'U'& duration.s == 30)$max.temp.C)
+
+# Calculate the time required for temperature to return to room temp:
+df.RT <- subset(df.Temp.plot, temperature.C > 25)
+HRS.return.to.room.temp <- max(df.RT$run.time.sec)/3600
+
+# stats: Testing effects of burn duration and soil type on maximum temperature.
+df.Temp.max$site.type <- factor(df.Temp.max$site.type)
+df.Temp.max$site  <- factor(df.Temp.max$site)
+df.Temp.max$duration.s <- factor(df.Temp.max$duration.s)
+
+# res_aov <- aov(max.temp.C~site.type/site + duration.s + duration.s:site.type, data = subset(df.Temp.max, thermocouple_position == 'U'))
+
+# summary(res_aov)
+# plot(res_aov)
+# TukeyHSD(res_aov)
+# temperature_test = 'ANOVA' 
+
+
+
+
+#     1. Check ANOVA assumptions
+#           -Independence of observations - check
+#           -no significant outliers
+#           -Normality - Nope. This data is not normally distributed.
+#           -Homogeneity of variances - nope.
+
+# boxplot(max.temp.C~duration.s*site.type, data = subset(df.Temp.max, duration.s==30))
+
+#     2. Move on to Wilcoxon signed rank test (for paired samples with non-normal distribution)
+
+test.ORG <-  wilcox.test(max.temp.C~duration.s, data = subset(df.Temp.max, site.type == 'ORG' & thermocouple_position == 'U'), paired=TRUE)
+
+test.SANDY <-  wilcox.test(max.temp.C~duration.s, data = subset(df.Temp.max, site.type == 'SANDY' & thermocouple_position == 'U'), paired=TRUE)
+
+max.temp.test = 'Wilcoxon signed rank test'
+
+```
+
+```{r, echo = FALSE, warning = FALSE}
+# Temperatures at core base:
+ORG_120L_temp_mean = mean(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L' & duration.s == 120)$max.temp.C)
+ORG_120L_temp_sd = sd(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L' & duration.s == 120)$max.temp.C)
+ORG_120L_temp_upper_range = max(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L' & duration.s == 120)$max.temp.C)
+ORG_120L_temp_lower_range = min(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L'& duration.s == 120)$max.temp.C)
+
+
+ORG_30L_temp_mean = mean(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L' & duration.s == 30)$max.temp.C)
+ORG_30L_temp_sd = sd(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L' & duration.s == 30)$max.temp.C)
+ORG_30L_temp_upper_range = max(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L' & duration.s == 30)$max.temp.C)
+ORG_30L_temp_lower_range = min(subset(df.Temp.max, site.type == 'ORG' &
+                   thermocouple_position == 'L'& duration.s == 30)$max.temp.C)
+
+
+### Min O horizon temp:
+
+# Sandy sites
+SANDY_120L_temp_mean = mean(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L' & duration.s == 120)$max.temp.C)
+SANDY_120L_temp_sd = sd(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L' & duration.s == 120)$max.temp.C)
+SANDY_120L_temp_upper_range = max(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L' & duration.s == 120)$max.temp.C)
+SANDY_120L_temp_lower_range = min(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L'& duration.s == 120)$max.temp.C)
+
+
+SANDY_30L_temp_mean = mean(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L' & duration.s == 30)$max.temp.C)
+SANDY_30L_temp_sd = sd(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L' & duration.s == 30)$max.temp.C)
+SANDY_30L_temp_upper_range = max(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L' & duration.s == 30)$max.temp.C)
+SANDY_30L_temp_lower_range = min(subset(df.Temp.max, site.type == 'SANDY' &
+                   thermocouple_position == 'L'& duration.s == 30)$max.temp.C)
+```
+
+The two burn treatment durations (30 s and 120 s) created a range of soil temperatures and mass loss (Figure `r n+1`; Supplementary Figure `r m+1`; Table 1) representative of soil temperatures during a wildfire. Maximum temperatures in organic soil cores following the 120 s burn treatments (mean=`r paste(sprintf(ORG_120U_temp_mean, fmt='%#.1f'), "\u00B1", sprintf(ORG_120U_temp_sd, fmt='%#.1f'),"\u00B0C")`) were significantly higher than maximum temperatures following the 30 s burn treatments (mean=`r paste(sprintf(ORG_30U_temp_mean, fmt='%#.1f'), "\u00B1", sprintf(ORG_30U_temp_sd, fmt='%#.1f'),"\u00B0C")`) (`r paste(max.temp.test,", p=",sprintf(test.ORG$p.value, fmt='%#.2e'), sep="")`). Maximum temperatures in sandy soil cores following the 120 s burn treatments (mean=`r paste(sprintf(SANDY_120U_temp_mean, fmt='%#.1f'), "\u00B1", sprintf(SANDY_120U_temp_sd, fmt='%#.1f'),"\u00B0C")`) were significantly higher than maximum temperatures following the 30 s burn treatments (mean=`r paste(sprintf(SANDY_30U_temp_mean, fmt='%#.1f'), "\u00B1", sprintf(SANDY_30U_temp_sd, fmt='%#.1f'),"\u00B0C")`) (`r paste(max.temp.test,", p=",sprintf(test.SANDY$p.value, fmt='%#.2e'), sep="")`). 
+
+Temperatures at the base of the organic soil 120 s burns reached a maximum of `r paste(sprintf(ORG_120L_temp_upper_range, fmt="%#.1f"),"\u00B0C")` (mean=`r paste(sprintf(ORG_120L_temp_mean, fmt='%#.1f'), "\u00B1", sprintf(ORG_120L_temp_sd, fmt='%#.1f'),"\u00B0C")`). Temperatures at the base of the sandy soil cores did not exceed `r paste(sprintf(SANDY_120L_temp_upper_range, fmt="%#.1f"),"\u00B0C")`. All cores returned to room temperature within `r paste(sprintf(HRS.return.to.room.temp, fmt="%#.1f"))` hours.
+
+
+```{r, echo = FALSE, warning = FALSE}
+# # Calculate cumulative time above 100 C
+# df.temp.above.100 <- df.Temp.clean[order(df.Temp.clean$core.id, df.Temp.clean$Time..sec., df.Temp.clean$thermocouple_position),] %>%
+#   group_by(core.id, thermocouple_position) %>%
+#   subset(temperature.C>100) %>%
+#   mutate(measurement.duration.s = run.time.sec-lag(run.time.sec)) %>%
+#   subset(is.na(measurement.duration.s)==FALSE) %>%
+#   dplyr::mutate(cumulative.hrs.above.100 = cumsum(measurement.duration.s)/3600,
+#          max.cumul = max(cumulative.hrs.above.100)) %>%
+#   subset(cumulative.hrs.above.100 == max.cumul) %>%
+#   mutate(year = '22UW-WB-') %>%
+#   unite(core.id, c(year, core.id), sep="", remove = TRUE) %>%
+#   merge(subset(df.meta, select = c(core.id, respiration.incubation.length.days, burn.trtmt.duration.seconds, site.type)) %>% unique(), by = 'core.id')
+
+# Calculate degrees x hours 
+df.temp.DH <- df.Temp.clean[order(df.Temp.clean$core.id, df.Temp.clean$Time..sec., df.Temp.clean$thermocouple_position),] %>%
+  group_by(core.id, thermocouple_position) %>%
+  subset(temperature.C>25) %>%
+  mutate(measurement.duration.s = run.time.sec-lag(run.time.sec)) %>%
+  subset(is.na(measurement.duration.s)==FALSE) %>%
+  dplyr::mutate(degree.hours = cumsum(temperature.C*measurement.duration.s/3600),
+         max.degree.hours = max(degree.hours)) %>%
+  subset(degree.hours == max.degree.hours) %>%
+  mutate(year = '22UW-WB-') %>%
+  unite(core.id, c(year, core.id), sep="", remove = TRUE) %>%
+  merge(subset(df.meta, select = c(core.id, respiration.incubation.length.days, burn.trtmt.duration.seconds, site.type)) %>% unique(), by = 'core.id')
+
+# convert burn treatment and thermocouple position to factors
+df.temp.DH$burn.trtmt.duration.seconds <- factor(df.temp.DH$burn.trtmt.duration.seconds, levels = c('0','30','120'))
+df.temp.DH$thermocouple_position <- factor(df.temp.DH$thermocouple_position, levels = c('U','M','L'))
+
+
+# Average DH with burning
+df.stats.DH = data.frame(ID = 'ID',MEAN = 0, SD = 0)
+
+for (i in c('ORG','SANDY')) {
+  for (j in c('U', 'M', 'L')) {
+    for (h in c(0,30,120)) {
+        x <- subset(df.temp.DH, site.type==i & thermocouple_position==j & burn.trtmt.duration.seconds==h )
+        if (dim(x)[1]==0) {
+          next
+        }
+        mean = mean(x$degree.hours)
+        sd = sd(x$degree.hours)
+        ID = paste(i,j,h)
+        temp <- data.frame(ID = ID, MEAN=mean, SD = sd)
+        df.stats.DH = rbind(df.stats.DH, temp)
+      }
+    }
+}
+
+
+### Creating dataframe of significant letters to add to plots. Method 2:
+df.cld.DH = data.frame(burn.trtmt.duration.seconds = 'duration.s', 
+                    max.DH = 'y', 
+                    thermocouple_position = 'thermocouple_position',  
+                    site.type = 'site.type',
+                    cld = 'cld')
+
+# Now create list of significant letters for ggplot:
+  for (j in c('ORG', 'SANDY')) {
+    for (h in c('U','L')) {
+      x <- subset(df.temp.DH, site.type == j & thermocouple_position == h)
+      if (dim(x)[1] == 0){
+        next
+      }
+      anova <- aov(degree.hours~as.factor(site)+burn.trtmt.duration.seconds, data = x)
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(subset(df.temp.DH,  
+                                 site.type == j & 
+                                 thermocouple_position == h), burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(max.DH=max(degree.hours)) %>%
+        dplyr::arrange(desc(max.DH)) %>%
+        mutate(site.type = j, thermocouple_position = h)
+      cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+      x.cld$cld <- cld$Letters
+      df.cld.DH <- rbind(df.cld.DH, x.cld)
+    }
+  }
+
+
+df.cld.DH <- subset(df.cld.DH, max.DH != 'y')
+
+
+# Now create list of p-values :
+df.p.DH = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+  for (j in c('ORG', 'SANDY')) {
+    for (h in c('U','L')) {
+      x <- subset(df.temp.DH, site.type == j & thermocouple_position == h)
+      if (dim(x)[1] == 0){
+        next
+      }
+      anova <- aov(degree.hours~as.factor(site)+burn.trtmt.duration.seconds, data = x)
+      tukey <- TukeyHSD(anova)
+      comparison = rownames(tukey$burn.trtmt.duration.seconds)
+      p.value = tukey$burn.trtmt.duration.seconds[4]
+      temp <- data.frame(ID = paste(j,h), comparison = comparison, p.value)
+      df.p.DH <- rbind(df.p.DH, temp)
+    }
+  }
+
+df.p.DH <- subset(df.p.DH, ID != 'ID')
+
+degree.hours.test = 'ANOVA'
+```
+
+```{r, echo=FALSE, fig.width=7.5, fig.height=5, dpi=300, fig.cap = paste("Figure ", n, ". (A) Thermocouple temperatures and (B) degree hours (above 25 \u00B0C)  in soil cores at the organic-mineral interface (top panels) and  base (bottom panels) of cores from organic sites (left) and sandy sites (right) during and following the burn treatment (n=24). Burn treatments were initiated at t=0. Temperatures greater than 100 \u00B0C suggest the presence of flaming combustion and are not a quantitative measure of soil matrix. Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). For boxplots, the central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+### Plot
+n=n+1
+
+df.Temp.plot$duration.s <- factor(df.Temp.plot$duration.s, levels = c(30,120))
+
+# Create temperature profile plot
+p_temp_profiles = ggplot(subset(df.Temp.plot, thermocouple_position!='M'), aes(x=run.time.sec/3600, y = temperature.C)) + 
+  geom_point(aes(color = (duration.s)),size=1.2) +
+  facet_wrap(thermocouple_position~site.type, 
+             scales = 'free',
+             labeller = labeller(thermocouple_position = ThermoPositions_labels,
+                                 site.type=SiteType_labels)) + 
+  theme_bw() + 
+  scale_color_manual(values = c(Temp_burn_duration_colors),
+                     labels = c(Temp_burn_duration_labels))+
+  labs(x = 'Time (h)',
+       y = expression(paste("Temperature (",degree ~ C,")")), 
+       color = 'Burn treatment:', 
+       title = 'A') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+
+# Create degree hour plot
+df.cld.DH$thermocouple_position <- factor(df.cld.DH$thermocouple_position, levels = c('U', 'M','L'))
+
+
+p_DH = ggplot(subset(df.temp.DH, thermocouple_position !='M'), aes(x=burn.trtmt.duration.seconds)) + 
+  geom_boxplot(aes(x=(burn.trtmt.duration.seconds), y = degree.hours, fill = (burn.trtmt.duration.seconds)), alpha=0.7) +
+  geom_text(data=df.cld.DH, aes(y=as.numeric(max.DH), label = cld), vjust = 1, hjust=2, size=3, )+
+  facet_wrap(thermocouple_position~site.type, 
+             scales = 'free',
+             labeller = labeller(thermocouple_position = ThermoPositions_labels,
+                                 site.type=SiteType_labels)) + 
+    theme_bw() +
+  scale_fill_manual(values = c(Temp_burn_duration_colors),
+                     labels = c(Temp_burn_duration_labels))+
+  labs(x = 'Burn treatment',
+       y = expression(paste("Degree hours (",degree ~ C," hrs) ")), 
+       fill = 'Burn treatment:', 
+       color = 'Burn treatment:',
+       title = 'B') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+cowplot::plot_grid(p_temp_profiles, p_DH, ncol = 2)
+
+Figure_number_Temp_Profiles_and_DH = n
+Figure_Temp_Profiles_and_DH = cowplot::plot_grid(p_temp_profiles, p_DH, ncol = 2)
+
+```
+
+
+
+```{r, echo = FALSE, warning=FALSE}
+# Create table with mass loss data:
+
+df.table <- df.meta %>%
+  subset(horizon == 'O') %>%
+  group_by(burn.trtmt.duration.seconds, vegetation) %>%
+  dplyr::mutate(mean.horizon.loss.at.top.of.core.cm = mean(horizon.loss.at.top.of.core.cm),
+         sd.horizon.loss.at.top.of.core.cm = sd(horizon.loss.at.top.of.core.cm)) %>%
+  subset(select = c(burn.trtmt.duration.seconds, vegetation, 
+         mean.horizon.loss.at.top.of.core.cm, sd.horizon.loss.at.top.of.core.cm)) %>%
+  unique()
+
+
+# Merge df.table with site.type variables:
+for (i in 1:nrow(df.table)) {
+  if (df.table$vegetation[i] == 'Picea_spp.') {
+    df.table$site.type[i] = 'Organic soil'
+  } else if (df.table$vegetation[i] == 'Pinus_banksiana') {
+    df.table$site.type[i] = 'Sandy soil'
+  }
+}
+
+df.table <- df.table %>%
+  subset(burn.trtmt.duration.seconds != 0) %>%
+  subset(select = c(burn.trtmt.duration.seconds, site.type, 
+         mean.horizon.loss.at.top.of.core.cm, sd.horizon.loss.at.top.of.core.cm))
+
+df.table <- arrange(df.table, burn.trtmt.duration.seconds)
+df.table <- arrange(df.table, site.type)
+
+kable(df.table, 
+      caption = "Table 1. Horizon depth loss following burn treatments.", 
+      digits = 1,
+      col.names = c('Burn treatment duration (s)', 
+              'Site type', 
+              'Mean horizon loss (cm)',
+              'SD'),
+      align = "cccc")
+
+
+
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=6, dpi=300, fig.cap = paste("Supplementary Figure ", m, ". Experimental use of mass loss calorimeter to simulate fire effects on soil.", sep="")}
+
+# See Supplementary Section
+pS_MLC_m = m
+
+m=m+1
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=6, dpi=300, fig.cap = paste("Supplementary Figure ", m, ". Temperature in soil cores from organic sites and sandy sites during and following the heat dosing treatment as measured by thermocouples placed at the O-mineral interface.", sep="")}
+
+# See Supplementary Section
+pS_temp_site_m = m
+
+m=m+1
+```
+
+Due to the heterogeneous nature of burning intact soil cores, maximum temperatures reached following the burn treatment varied greatly between cores both within the same site and across sites (Supplementary Figure `r m+1`). 
+
+```{r, echo=FALSE, include=FALSE}
+# Combine temperature data with metadata
+df.temp.and.meta <- df.Temp.max %>%
+  mutate(year = '22UW-WB-') %>%
+  unite(core.id, c(year, core.id), sep="", remove = TRUE) %>%
+  merge(subset(df.meta, select = c(core.id, respiration.incubation.length.days)) %>% unique(), by = 'core.id')
+
+df.temp.and.meta$respiration.incubation.length.days <- factor(df.temp.and.meta$respiration.incubation.length.days, levels = c(2,14,42,70))
+
+
+
+### Creating dataframe of significant letters to add to plots. Method 2:
+df.cld.max.T = data.frame(duration.s = 'duration.s', 
+                    max = 'y', 
+                    thermocouple_position = 'thermocouple_position',  
+                    site.type = 'site.type',
+                    cld = 'cld')
+
+df.p.max.T = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+# Now create list of significant letters for ggplot:
+  for (j in c('ORG', 'SANDY')) {
+    for (h in c('U','L')) {
+      x <- subset(df.temp.and.meta, site.type == j & thermocouple_position == h)
+      if (dim(x)[1] == 0){
+        next
+      }
+
+      wilcox <- wilcox.test(max.temp.C~duration.s, data = x, paired=TRUE)
+      
+      x.cld <- group_by(subset(df.temp.and.meta,  
+                                 site.type == j & 
+                                 thermocouple_position == h), duration.s) %>%
+        dplyr::summarize(max=max(max.temp.C)) %>%
+        dplyr::arrange(desc(max)) %>%
+        mutate(site.type = j, thermocouple_position = h)
+      
+      for (i in 1:nrow(x.cld)) {
+        if (x.cld$duration.s[i]==30) {
+          x.cld$cld[i]='b'
+        } else {
+          x.cld$cld[i]='a'
+        }
+      }
+
+      df.cld.max.T <- rbind(df.cld.max.T, x.cld)
+      
+      p.value = wilcox$p.value
+      temp <- data.frame(ID = paste(j,h), comparison = 'burn.duration', p.value)
+      df.p.max.T <- rbind(df.p.max.T, temp)
+      
+    }
+  }
+
+
+df.cld.max.T <- subset(df.cld.max.T, max != 'y')
+
+df.p.max.T <- subset(df.p.max.T, ID != 'ID')
+
+max.temp.test = 'Wilcoxon signed rank test'
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=4, dpi=300, fig.cap = paste("Supplementary Figure ", m, ". Maximum temperatures reached in soil cores from organic sites (left) and sandy sites (right) during and following the heat dosing treatment as measured by thermocouples placed at the O-mineral interface (top panel) and core base (bottom panel). Different letters represent statistically significant differences in treatments based on Wilcoxon signed rank tests (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+# See Supplementary Section
+p_max_temps_m = m
+
+m = m+1 
+
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=4, dpi=300, fig.cap = paste("Supplementary Figure ", core_images_m, ". Cores images", sep="")}
+
+# See Supplementary Section
+
+core_images_m = m
+
+m = m + 1
+
+```
+
+
+To address heterogeneity in temperatures following the burn treatments, we used a weighted measure of the cumulative time above 25 `r paste("\u00B0C")` designated degree hours (DH). DH were calculated by multiplying change in time by each temperature data point (minus 25 `r paste("\u00B0C")`) and summing the result across the portion of the temperature profile (Figure `r Figure_number_Temp_Profiles_and_DH`) above 25 `r paste("\u00B0C")`. 
+
+We recorded significantly higher DH at the upper thermocouple following the 120 s burn treatments in both organic (mean=`r paste(sprintf(subset(df.stats.DH, ID == 'ORG U 120')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.DH, ID == 'ORG U 120')$SD, fmt='%#.1f'),"\u00B0C")`$\cdot$hr) and sandy soil cores (mean=`r paste(sprintf(subset(df.stats.DH, ID == 'SANDY U 120')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.DH, ID == 'SANDY U 120')$SD, fmt='%#.1f'),"\u00B0C")`$\cdot$hr) compared to the 30 s burn treatments (organic, mean=`r paste(sprintf(subset(df.stats.DH, ID == 'ORG U 30')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.DH, ID == 'ORG U 30')$SD, fmt='%#.1f'),"\u00B0C")`$\cdot$hr; `r degree.hours.test`, p=`r sprintf(subset(df.p.DH, ID == 'ORG U' & comparison == '120-30')$p.value, fmt='%#.1e')`; sandy, mean=`r paste(sprintf(subset(df.stats.DH, ID == 'SANDY U 30')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.DH, ID == 'SANDY U 30')$SD, fmt='%#.1f'),"\u00B0C")`$\cdot$hr; `r degree.hours.test`, p=`r sprintf(subset(df.p.DH, ID == 'SANDY U' & comparison == '120-30')$p.value, fmt='%#.1e')`). 
+
+Burning caused a decrease in the height of the organic soil cores via combustion and volatilization of organic material at the soil surface. The effect of burning on sandy soil core height was much smaller as would be expected due to the relative lack of combustible material compared to the organic cores. 
+
+
+### Soil pH increases with higher temperatures and longer heat exposures
+
+```{r, echo=FALSE}
+# Set up dataframes and merge with metadata:
+df.pH <- read.csv('../data/soil-properties/pH.csv')
+colnames(df.pH)[1] <- 'core.id'
+
+# merge pH data with metadata
+df.merge <- merge(df.meta, subset(df.pH, select = c(sample.id, pH, incubation.period.days)), by = 'sample.id')
+df.merge <- unite(df.merge, soil.type, c(site.type, horizon), sep = '-', remove = FALSE)
+
+# Convert burn treatment and horizon to factors
+df.merge$burn.trtmt.duration.seconds <- factor(df.merge$burn.trtmt.duration.seconds, 
+                                                  levels = c('0','30','120'))
+df.merge$horizon <- factor(df.merge$horizon, levels = c('O','M')) 
+df.merge$site  <- factor(df.merge$site)
+df.merge$site.type <- factor(df.merge$site.type)
+df.merge$soil.type <- factor(df.merge$soil.type, levels = c('ORG-O','SANDY-O', 'SANDY-M'))
+
+# Average pH with burning
+df.stats.pH = data.frame(ID = 'ID',MEAN = 0, SD = 0)
+
+# calculate average pH
+  for (j in c('ORG-O', 'SANDY-O', 'SANDY-M')) {
+    for (h in c(0,30,120)) {
+      for (k in c(2,21,49,70)) {
+        x <- subset(df.merge, soil.type==j & burn.trtmt.duration.seconds==h & incubation.period.days==k)
+        if (dim(x)[1]==0) {
+          next
+        }
+        mean = mean(x$pH)
+        sd = sd(x$pH)
+        ID = paste(j,h,k)
+        temp <- data.frame(ID = ID, MEAN=mean, SD = sd)
+        df.stats.pH = rbind(df.stats.pH, temp)
+      }
+    }
+  }
+
+### stats: Testing effects of burn duration and soil type on maximum temperature. ----
+# Convert burn treatment, site, site.type, and horizon to factors.
+df.merge$burn.trtmt.duration.seconds <- factor(df.merge$burn.trtmt.duration.seconds)
+df.merge$site  <- factor(df.merge$site)
+df.merge$site.type <- factor(df.merge$site.type)
+df.merge$horizon <- factor(df.merge$horizon)
+
+pH_test = 'ANOVA' 
+
+
+### Creating dataframe of significant letters to add to plots. Method 2:
+df.cld.pH = data.frame(burn.trtmt.duration.seconds = 'duration', 
+                    max.pH = 'y', 
+                    soil.type = 'soil', 
+                    incubation.period.days = 'incubation.period.days',
+                    cld = 'cld')
+
+# Now create list of significant letters for ggplot:
+  for (j in c('ORG-O', 'SANDY-O', 'SANDY-M')) {
+    for (h in c(2,21,49,70)) {
+      x <- subset(df.merge, soil.type == j & incubation.period.days == h)
+      if (dim(x)[1] == 0){
+        next
+      }
+      anova <- aov(pH~site+burn.trtmt.duration.seconds, data = x)
+      # Interaction between site.type and burn treatment 
+      #    (site.type*burn.trtmt.duration.seconds) is not significant so it is 
+      #    not including in the model, and we report results without the 
+      #    interaction. 
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(subset(df.merge, 
+                               soil.type == j & 
+                                 incubation.period.days == h), burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(max.pH=max(pH)) %>%
+        dplyr::arrange(desc(burn.trtmt.duration.seconds)) %>%
+        mutate(incubation.period.days = h, soil.type = j)
+      cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+      x.cld$cld <- cld$Letters
+      df.cld.pH <- rbind(df.cld.pH, x.cld)
+  }
+}
+
+df.cld.pH <- subset(df.cld.pH, max.pH != 'y')
+
+
+# Now create list of p-values :
+df.p.pH = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+  for (j in c('ORG-O', 'SANDY-O', 'SANDY-M')) {
+    for (h in c(2,21,49,70)) {
+      x <- subset(df.merge, soil.type == j & incubation.period.days == h)
+      if (dim(x)[1] == 0){
+        next
+      }
+      anova <- aov(pH~site+burn.trtmt.duration.seconds, data=x)
+      tukey <- TukeyHSD(anova)
+      comparison = rownames(tukey$burn.trtmt.duration.seconds)
+      p.value = tukey$burn.trtmt.duration.seconds[10:12]
+      temp <- data.frame(ID = paste(j,h), comparison = comparison, p.value)
+      df.p.pH <- rbind(df.p.pH, temp)
+    }
+  }
+
+df.p.pH <- subset(df.p.pH, ID != 'ID')
+```
+
+
+Burning caused an immediate increase in soil pH (Figure `r n+1`). Following the 120 s burn treatment, soil pH was significantly higher in organic soil (mean=`r paste(sprintf(subset(df.stats.pH, ID == 'ORG-O 120 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'ORG-O 120 2')$SD, fmt='%#.1f'), sep="")`), sandy soil O (mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-O 120 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-O 120 2')$SD, fmt='%#.1f'), sep="")`), and mineral horizons (mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-M 120 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-M 120 2')$SD, fmt='%#.1f'), sep="")`) compared to unburned controls (organic soil, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'ORG-O 0 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'ORG-O 0 2')$SD, fmt='%#.1f'), "; ", pH_test, ", p=",sprintf(subset(df.p.pH, ID == 'ORG-O 2' & comparison == '120-0')$p.value, fmt='%#.1e'), sep="")`; sandy soil O horizon, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-O 0 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-O 0 2')$SD, fmt='%#.1f'), "; ", pH_test, ", p=",sprintf(subset(df.p.pH, ID == 'SANDY-O 2' & comparison == '120-0')$p.value, fmt='%#.1e'), sep="")`; sandy soil mineral horizon, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-M 0 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-M 0 2')$SD, fmt='%#.1f'), "; ", pH_test, ", p=",sprintf(subset(df.p.pH, ID == 'SANDY-M 2' & comparison == '120-0')$p.value, fmt='%#.1e'), sep="")`). There was only weak evidence that the 30 s burn duration treatment had a positive effect on soil pH in organic soil (mean=`r paste(sprintf(subset(df.stats.pH, ID == 'ORG-O 30 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'ORG-O 30 2')$SD, fmt='%#.1f'), "; ", pH_test, ", p=",sprintf(subset(df.p.pH, ID == 'ORG-O 2' & comparison == '30-0')$p.value, fmt='%#.1e'), sep="")`). There was no significant change in pH following the 30 second heat exposure in sandy soil (O horizon, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-O 30 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-O 30 2')$SD, fmt='%#.1f'), "; ", pH_test, ", p=",sprintf(subset(df.p.pH, ID == 'SANDY-O 2' & comparison == '30-0')$p.value, fmt='%#.1e'), sep="")`; mineral horizon, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-M 30 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-M 30 2')$SD, fmt='%#.1f'), "; ", pH_test, ", p=",sprintf(subset(df.p.pH, ID == 'SANDY-M 2' & comparison == '30-0')$p.value, fmt='%#.1e'), sep="")`). The interaction between site type (organic vs. sandy) and burn treatment duration was not significant.
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=3, dpi=300, fig.cap=paste("Figure ", n, ".  Soil pH two days post-burn in O horizons (left panel) and mineral soil (right panel). Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+### Plot
+n=n+1
+df.cld.pH$soil.type <- factor(df.cld.pH$soil.type, levels = c('ORG-O','SANDY-O', 'SANDY-M'))
+
+p =ggplot(subset(df.merge, incubation.period.days==2), aes(x=burn.trtmt.duration.seconds, y = pH)) + 
+  geom_boxplot(aes(group=burn.trtmt.duration.seconds,fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+  geom_text(data=subset(df.cld.pH, incubation.period.days==2), aes(y=as.numeric(max.pH), label = cld), vjust = -1, size=3) +
+  theme_bw() +
+  facet_wrap(~soil.type,
+             scales = 'fixed',
+             labeller = labeller(horizon = Horizon_labels,
+                                 soil.type=SoilType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Burn treatment',
+       y = 'Soil pH',
+       fill = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) +
+  ylim(min(df.merge$pH)-0.1, max(df.merge$pH)+1)
+
+plot(p)
+
+
+Figure_number_soil_pH_2days_postburn=n
+Figure_soil_pH_2days_postburn=p
+
+```
+
+
+```{r echo=FALSE}
+# combine pH data with other metadata
+df.pH.DH <- df.Temp.max %>%
+  mutate(year = '22UW-WB-') %>%
+  unite(core.id, c(year, core.id), sep="", remove = TRUE) %>%
+  subset(select = c(core.id, max.temp.C)) %>%
+  merge(df.merge, by = 'core.id') %>%
+  merge(subset(df.temp.DH, select = c(core.id, thermocouple_position, degree.hours)), by = c('core.id'))
+
+# Stats.
+
+# model with interaction.
+lm_interaction <- (lm(data=subset(df.pH.DH, incubation.period.days==2 & horizon == 'O' & thermocouple_position == 'U'), pH~degree.hours*site.type))
+
+# summary(lm_interaction)   # interaction is significant
+lm.rsquared <- summary(lm_interaction)$adj.r.squared
+lm.p <- summary(lm_interaction)$coefficients[14]
+lm.interaction.p.value <- summary(lm_interaction)$coefficients[16]
+
+# Assign coefficients
+Intercept = lm_interaction$coefficients[1]
+DH = lm_interaction$coefficients[2]
+SiteType = lm_interaction$coefficients[3]
+Interaction = lm_interaction$coefficients[4]
+
+# Form = intercept, YSF, BSI
+lm.coeffs = data.frame(t(c(Intercept, DH, SiteType,Interaction)))
+colnames(lm.coeffs)[1:4] <- c('Intercept','DH','SiteType','Interaction')
+
+Int.ORG.fg=round(lm.coeffs$Intercept+lm.coeffs$SiteType*0,3)
+Int.SANDY.fg=round(lm.coeffs$Intercept+lm.coeffs$DH+lm.coeffs$SiteType*1,3)
+Slope.ORG.fg=round(lm.coeffs$DH,3)
+Slope.SANDY.fg=round(lm.coeffs$DH+lm.coeffs$Interaction,3)
+
+pH.with.DH.test <-  'linear model with interaction between DH and site.type'
+
+# This should give us the data frame we need to plot
+# Derive the sets of co-ordinates we want to plot and add to our dataset
+x <- df.pH.DH
+
+df.pH.DH <- subset(df.pH.DH, incubation.period.days==2 & horizon == 'O' & thermocouple_position == 'U') %>% unique()
+
+for (i in 1:nrow(df.pH.DH)) {
+  if (df.pH.DH$site.type[i] == 'ORG') {
+    df.pH.DH$LinearFit[i] = lm.coeffs$Intercept + lm.coeffs$DH*df.pH.DH$degree.hours[i] + 0  
+  } else {
+    df.pH.DH$LinearFit[i] = lm.coeffs$Intercept + lm.coeffs$DH*df.pH.DH$degree.hours[i] + lm.coeffs$SiteType*1 + lm.coeffs$Interaction*df.pH.DH$degree.hours[i]*1
+  }
+}
+
+```
+
+
+Soil pH was significantly positively correlated with DH (p=`r sprintf(lm.p, fmt='%#.2f')`, $R^{2}_{adj.}$=`r sprintf(lm.rsquared, fmt='%#.2f')`) in organic and sandy soil (interaction term between site type and soil pH, p=`r sprintf(lm.interaction.p.value, fmt='%#.1e')`) (Supplementary Figure `r m+1`).
+
+
+```{r, echo=FALSE, fig.width=5, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p.pH.DH_m, ". Soil pH two days post-burn with increasing degree hours (DH) in O horizons of organic soils (left panel, y = ", Int.ORG.fg, " + ", Slope.ORG.fg, "x) and sandy soils (right panel, y = ", Int.SANDY.fg, " + ", Slope.SANDY.fg, "x) (n=12 soil horizon samples). DH were calculated based on thermocouple placed at O-mineral interface or at core midpoint. We used a linear model including an interaction term between site type and DH to test for a significant correlation between DH and soil pH.", sep="")}
+
+# See Supplementary Section
+
+p.pH.DH_m = m 
+
+m=m+1
+
+```
+
+
+
+```{r, echo=FALSE}
+# calculate change in pH over course of incubation:
+df.unburned.pH <- subset(df.merge, incubation.period.days==2 & burn.trtmt.duration.seconds==0) %>%
+  mutate(initial.unburned.pH = pH) %>%
+  subset(select = c(site,horizon,initial.unburned.pH)) 
+
+df.burned.pH <- subset(df.merge, incubation.period.days==2 & burn.trtmt.duration.seconds !=0) %>%
+  mutate(post.burn.pH = pH) %>%
+  subset(select = c(site,horizon,burn.trtmt.duration.seconds, post.burn.pH))
+
+df.pH.change.burning <- subset(df.merge, select = c(site, horizon, burn.trtmt.duration.seconds, site.type)) %>%
+  subset(burn.trtmt.duration.seconds !=0) %>%
+  merge(df.unburned.pH, by = c('site','horizon')) %>%
+  merge(df.burned.pH, by = c('site','horizon', 'burn.trtmt.duration.seconds')) %>%
+  mutate(change.pH.with.burning = post.burn.pH-initial.unburned.pH) %>%
+  unique()
+
+df.cld.change.pH = data.frame(burn.trtmt.duration.seconds = 'duration', 
+                    max.change.pH.with.burning = 'y', 
+                    site.type = 'site.type',
+                    horizon = 'horizon',
+                    cld = 'cld')
+
+# Now create list of significant letters for ggplot:
+for (i in c('ORG','SANDY')) {
+  for (j in c('O', 'M')) {
+      x <- subset(df.pH.change.burning, site.type == i & horizon == j)
+      if (dim(x)[1] == 0){
+        next
+      }
+      anova <- aov(change.pH.with.burning~burn.trtmt.duration.seconds, data=x)
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(subset(df.pH.change.burning, site.type == i & 
+                                 horizon == j), burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(max.change.pH.with.burning=max(change.pH.with.burning)) %>%
+        dplyr::arrange(desc(max.change.pH.with.burning)) %>%
+        mutate(site.type = i, horizon = j)
+      cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+      x.cld$cld <- cld$Letters
+      df.cld.change.pH <- rbind(df.cld.change.pH, x.cld)
+  }
+}
+
+df.cld.change.pH <- subset(df.cld.change.pH, max.change.pH.with.burning != 'y')
+df.cld.change.pH$horizon <- factor(df.cld.change.pH$horizon, levels = c('O','M')) 
+
+change.pH.with.burning.test <- 'ANOVA'
+```
+
+
+
+```{r, echo=FALSE}
+df.cld.pH.incub = data.frame(burn.trtmt.duration.seconds = 'duration', 
+                    max.pH = 'y', 
+                    soil.type = 'site.type',
+                    incubation.period.days = 'incubation.period.days',
+                    cld = 'cld')
+
+# Now create list of significant letters for ggplot:
+for (i in c('ORG-O','SANDY-O','SANDY-M')) {
+    for (h in c(0,30,120)) {
+      x <- subset(df.merge, soil.type == i & burn.trtmt.duration.seconds == h)
+      if (dim(x)[1] == 0){
+        next
+      }
+      x$incubation.period.days <- as.character(x$incubation.period.days)
+      anova <- aov(pH~incubation.period.days, data=x)
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(subset(df.merge, soil.type == i & 
+                                 burn.trtmt.duration.seconds == h), incubation.period.days) %>%
+        dplyr::summarize(max.pH=max(pH)) %>%
+        dplyr::arrange(desc(max.pH)) %>%
+        mutate(soil.type = i, burn.trtmt.duration.seconds = h)
+      cld <- as.data.frame.list(cld$incubation.period.days)
+      x.cld$cld <- cld$Letters
+      df.cld.pH.incub <- rbind(df.cld.pH.incub, x.cld)
+  }
+}
+
+df.cld.pH.incub <- subset(df.cld.pH.incub, max.pH != 'y')
+df.cld.pH.incub$burn.trtmt.duration.seconds <- factor(df.cld.pH.incub$burn.trtmt.duration.seconds, levels = c(0,30,120))
+
+
+# Now create list of p-values (effect of incubation length on pH:
+df.p.pH.incub = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+for (i in c('ORG-O','SANDY-O','SANDY-M')) {
+    for (h in c(0,30,120)) {
+      x <- subset(df.merge, soil.type == i & burn.trtmt.duration.seconds == h)
+      if (dim(x)[1] == 0){
+        next
+      }
+      x$incubation.period.days <- as.character(x$incubation.period.days)
+      anova <- aov(pH~incubation.period.days, data=x)
+      tukey <- TukeyHSD(anova)
+      comparison = rownames(tukey$incubation.period.days)
+      p.value = tukey$incubation.period.days[19:24] 
+      temp <- data.frame(ID = paste(i,h), comparison = comparison, p.value)
+      df.p.pH.incub <- rbind(df.p.pH.incub, temp)
+  }
+}
+
+df.p.pH.incub <- subset(df.p.pH.incub, ID != 'ID')
+
+change.pH.with.time.since.burn.test = 'ANOVA'
+```
+
+
+Soil pH was influenced by time since burn treatment. Soil pH increased in control cores over the course of the 70 day incubation in organic cores (2 days post-burn, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'ORG-O 0 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'ORG-O 0 2')$SD, fmt='%#.1f'))`; 70 days post-burn, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'ORG-O 0 70')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'ORG-O 0 70')$SD, fmt='%#.1f'), "; ", change.pH.with.time.since.burn.test, ", p=",sprintf(subset(df.p.pH.incub, ID == 'ORG-O 0' & comparison == '70-2')$p.value, fmt='%#.1e'), sep="")`) and in the organic horizon of sandy cores (2 days post-burn, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-O 0 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-O 0 2')$SD, fmt='%#.1f'))`; 70 days post-burn, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-O 0 70')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-O 0 70')$SD, fmt='%#.1f'), "; ", change.pH.with.time.since.burn.test, ", p=",sprintf(subset(df.p.pH.incub, ID == 'SANDY-O 0' & comparison == '70-2')$p.value, fmt='%#.1e'), sep="")`). There was no change in pH in mineral horizon pH in control samples during the incubation. For the burned cores, there were significant changes in pH over the course of the incubation only in the organic horizons of sandy cores exposed to the 30 second heat treatment (2 days post-burn, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-O 30 2')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-O 0 2')$SD, fmt='%#.1f'))`; 70 days post-burn, mean=`r paste(sprintf(subset(df.stats.pH, ID == 'SANDY-O 30 70')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.pH, ID == 'SANDY-O 30 70')$SD, fmt='%#.1f'), "; ", change.pH.with.time.since.burn.test, ", p=",sprintf(subset(df.p.pH.incub, ID == 'SANDY-O 30' & comparison == '70-2')$p.value, fmt='%#.1e'), sep="")`) (Supplementary Figure `r m+1`).
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=6, dpi=300, fig.cap=paste("Supplementary Figure ", p.pH.incub_m, ". Soil pH over the course of the 70 day incubation. Different letters represent statistically significant differences soil pH across timepoints based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+# See Supplementary Section
+
+p.pH.incub_m = m
+
+m=m+1
+
+```
+
+
+
+### Soil C:N ratios decrease with burning
+
+```{r, echo=FALSE}
+# Set up dataframes and merge with metadata: 
+df.CN <- read.csv('../data/soil-properties/total-C-and-N.csv')
+colnames(df.CN)[1] <- 'sample.id'
+
+df.merge.CN <- merge(df.merge, subset(df.CN, select = c(sample.id, C.percent, N.percent)), by = 'sample.id')
+
+df.merge.CN$burn.trtmt.duration.seconds <- factor(df.merge.CN$burn.trtmt.duration.seconds, 
+                                                  levels = c('0','30','120'))
+df.merge.CN$horizon <- factor(df.merge.CN$horizon, levels = c('O','M')) 
+
+
+# calculate C:N
+df.merge.CN <- df.merge.CN %>%
+  mutate(C.N.ratio = C.percent/N.percent)
+
+
+df.merge.CN$site <- factor(df.merge.CN$site)
+df.merge.CN$burn.trtmt.duration.seconds <- factor(df.merge.CN$burn.trtmt.duration.seconds)
+
+
+
+# # Effect of burn treatment on total N - various ANOVA models:
+# res_aov <- aov(N.percent~site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'O'))
+# s1=summary(res_aov)
+# # plot(res_aov)
+# 
+# res_aov <- aov(N.percent~site.type/site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'O'))
+# s2=summary(res_aov)
+# # plot(res_aov)
+# 
+# res_aov <- aov(N.percent~site.type/site+burn.trtmt.duration.seconds+burn.trtmt.duration.seconds:site.type, data = subset(df.merge.CN, horizon == 'O'))
+# s3=summary(res_aov)
+# # plot(res_aov)
+# 
+# # M horizons...
+# res_aov <- aov(C.percent~site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'M'))
+# s4=summary(res_aov)
+# # plot(res_aov)
+
+
+# ### ANOVA models to use
+# 
+# # C concentration, O horizon
+# res_aov <- aov(C.percent~site.type/site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'O'))
+# sCO=summary(res_aov) # Interaction between burn trtmt and site.type is not significant so I'm not including it in model
+# 
+# # C concentration, M horizon (only sandy sites)
+# res_aov <- aov(C.percent~site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'M'))
+# sCM=summary(res_aov)
+# 
+# # N concentration, O horizon
+# res_aov <- aov(N.percent~site.type/site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'O'))
+# sNO=summary(res_aov) # Interaction between burn trtmt and site.type is not significant so I'm not including it in model
+# 
+# # N concentration, M horizon (only sandy sites)
+# res_aov <- aov(N.percent~site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'M'))
+# sNM=summary(res_aov)
+# 
+# # C and N ratios, O horizon
+# res_aov <- aov(C.N.ratio~site.type/site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'O'))
+# sCN_O <- summary(res_aov)  # Interaction between burn trtmt and site.type is not significant so I'm not including it in model
+# # plot(res_aov)
+# 
+# # C and N ratios, M horizon
+# res_aov <- aov(C.N.ratio~site+burn.trtmt.duration.seconds, data = subset(df.merge.CN, horizon == 'M'))
+# sCN_M=summary(res_aov)
+
+
+# Difference in C and N between O horizons of Organic and Sandy sites
+df.stats.CN.sites = data.frame(ID = 'ID',MEAN.C=0, SD.C=0, MEAN.N=0, SD.N=0, MEAN.CN=0, SD.CN=0)
+
+for (j in c('ORG', 'SANDY')) {
+  for (i in c('O', 'M')){
+    x <- subset(df.merge.CN, horizon==i & site.type==j)
+        if (dim(x)[1]==0) {
+          next
+        }
+        mean.C = mean(x$C.percent)
+        sd.C = sd(x$C.percent)
+        mean.N = mean(x$N.percent)
+        sd.N = sd(x$N.percent)
+        mean.CN = mean(x$C.N.ratio)
+        sd.CN = sd(x$C.N.ratio)
+        ID = paste(j, i)
+        temp <- data.frame(ID = ID, 
+                           MEAN.C=mean.C, SD.C=sd.C, 
+                           MEAN.N=mean.N, SD.N=sd.N,
+                           MEAN.CN=mean.CN, SD.CN = sd.CN)
+        df.stats.CN.sites = rbind(df.stats.CN.sites, temp)
+  } 
+}
+
+df.stats.CN.sites <- df.stats.CN.sites %>% subset(ID != 'ID')
+
+# Stats for unburned organic vs. sandy soils:
+Carbon.OvS <- aov(C.percent~site.type, subset(df.merge.CN, horizon == 'O' & burn.trtmt.duration.seconds == 0))
+tukey.Carbon.OvS <- TukeyHSD(Carbon.OvS)
+
+Nitrogen.OvS <- aov(N.percent~site.type, subset(df.merge.CN, horizon == 'O' & burn.trtmt.duration.seconds == 0))
+tukey.Nitrogen.OvS <- TukeyHSD(Nitrogen.OvS)
+
+CN.OvS <- aov(C.N.ratio~site.type, subset(df.merge.CN, horizon == 'O' & burn.trtmt.duration.seconds == 0))
+tukey.CN.OvS <- TukeyHSD(CN.OvS)
+
+
+
+# Calculate change in C:N with burning
+df.unburned.CN <- subset(df.merge.CN, burn.trtmt.duration.seconds == 0) %>%
+  mutate(initial.C.N.ratio = C.N.ratio,
+         initial.C.percent = C.percent,
+         initial.N.percent = N.percent) %>%
+  subset(select = c(site, horizon, initial.C.N.ratio, initial.C.percent, initial.N.percent))
+
+df.burned.CN <- subset(df.merge.CN, burn.trtmt.duration.seconds != 0) %>%
+  mutate(post.burn.C.N.ratio = C.N.ratio,
+         post.burn.C.percent = C.percent, 
+         post.burn.N.percent = N.percent)
+
+df.change.CN <- df.burned.CN %>%
+  merge(df.unburned.CN, by = c('site','horizon')) %>%
+  mutate(change.C.N.ratio = post.burn.C.N.ratio - initial.C.N.ratio,
+         change.C.percent = post.burn.C.percent - initial.C.percent,
+         change.N.percent = post.burn.N.percent - initial.N.percent)
+
+
+# Difference in C:N ratios with burning
+df.stats.CN = data.frame(ID = 'ID',MEAN.CN=0, SD.CN=0)
+
+for (j in c('ORG-O', 'SANDY-O', 'SANDY-M')) {
+  for (i in c(0,30,120)){
+    x <- subset(df.merge.CN, soil.type==j & burn.trtmt.duration.seconds==i)
+        if (dim(x)[1]==0) {
+          next
+        }
+        mean.CN = mean(x$C.N.ratio)
+        sd.CN = sd(x$C.N.ratio)
+        ID = paste(j, i)
+        temp <- data.frame(ID = ID, MEAN.CN=mean.CN, SD.CN=sd.CN)
+        df.stats.CN = rbind(df.stats.CN, temp)
+  } 
+}
+
+df.stats.CN <- df.stats.CN %>% subset(ID != 'ID')
+
+C.and.N.test = 'ANOVA'
+
+
+
+### Stats for C:N ratios with burning: 
+
+# # I need to fix the sites so that both site types have the same site id's I think.
+# df.merge.CN$site.type <- factor(df.merge.CN$site.type)
+# df.merge.CN$site <- as.character(df.merge.CN$site)
+# 
+# for (i in 1:nrow(df.merge.CN)){
+#   if (df.merge.CN$site[i] == '4') {
+#     df.merge.CN$site.id[i] = '1'
+#   } else if (df.merge.CN$site[i] == '6')  {
+#     df.merge.CN$site.id[i] = '2'
+#   } else if (df.merge.CN$site[i] == '7') {
+#     df.merge.CN$site.id[i] = '3'
+#   } else if (df.merge.CN$site[i] == '10') {
+#     df.merge.CN$site.id[i] = '8'
+#   } else if (df.merge.CN$site[i] == '11') {
+#     df.merge.CN$site.id[i] = '5'
+#   } else if (df.merge.CN$site[i] == '12') {
+#     df.merge.CN$site.id[i] = '9'
+#   } else {
+#     df.merge.CN$site.id[i] = df.merge.CN$site[i]
+#   }
+# }
+
+
+# Now create list of significant letters for ggplot: This doesn't work right now because the site.type/type in the Tukey HSD is causing it to try to compare ORG site + site 1 to SANDY site + site 1 but there is only one site 1 and it is a SANDY site.
+df.merge.CN$burn.trtmt.duration.seconds <- factor(df.merge.CN$burn.trtmt.duration.seconds, levels = c(0,30,120))
+
+# Make stats for fig 3 (C:N ratios)
+df.cld.CN = data.frame(burn.trtmt.duration.seconds = 'duration',
+                    mean.CN = 0,
+                    max.CN=0,
+                    soil.type = 'horizon',
+                    cld = 'cld')
+
+df.p.CN = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+
+for (j in c('ORG-O', 'SANDY-O', 'SANDY-M')) {
+      x <- subset(df.merge.CN, soil.type == j)
+      if (dim(x)[1] == 0){
+        next
+      }
+      if (j == 'O'){
+        anova <- aov(C.N.ratio~site+burn.trtmt.duration.seconds, data = x)
+      } else {
+          anova <- aov(C.N.ratio~site+burn.trtmt.duration.seconds, data =x)
+      }
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(subset(df.merge.CN, soil.type == j), burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(mean.CN=mean(C.N.ratio),
+                  max.CN=max(C.N.ratio)) %>%
+        dplyr::arrange(desc(mean.CN)) %>%
+        mutate(soil.type = j)
+      cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+      x.cld$cld <- cld$Letters
+      df.cld.CN <- rbind(df.cld.CN, x.cld)
+      
+      comparison = rownames(tukey$burn.trtmt.duration.seconds)
+      p.value = tukey$burn.trtmt.duration.seconds[10:12]
+      temp <- data.frame(ID = paste(j), comparison = comparison, p.value)
+      df.p.CN <- rbind(df.p.CN, temp)
+}
+
+df.cld.CN <- subset(df.cld.CN, cld != 'cld')
+df.cld.CN$soil.type <- factor(df.cld.CN$soil.type, levels = c('ORG-O', 'SANDY-O', 'SANDY-M'))
+
+df.p.CN <- subset(df.p.CN, ID != 'ID')
+
+C.N.ratio.test = 'ANOVA'
+
+```
+
+There was a significant difference in C and N concentrations between the two unburned soil types. Organic sites had significantly higher total C concentrations (unburned, mean = `r paste(sprintf(subset(df.stats.CN.sites, ID=='ORG O')$MEAN.C, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='ORG O')$SD.C, fmt='%#.1f'),"%", sep="")`) and total N (unburned, mean = `r paste(sprintf(subset(df.stats.CN.sites, ID=='ORG O')$MEAN.N, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='ORG O')$SD.N, fmt='%#.1f'),"%", sep="")`) than sandy sites (O horizon unburned, mean total C = `r paste(sprintf(subset(df.stats.CN.sites, ID=='SANDY O')$MEAN.C, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='SANDY O')$SD.C, fmt='%#.1f'),"%", "; ", C.and.N.test, ", p=",sprintf(tukey.Carbon.OvS$site.type[4], fmt='%#.1e'), sep="")`; mean total N = `r paste(sprintf(subset(df.stats.CN.sites, ID=='SANDY O')$MEAN.N, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='SANDY O')$SD.N, fmt='%#.1f'),"%", "; ", C.and.N.test, ", p=",sprintf(tukey.Nitrogen.OvS$site.type[4], fmt='%#.1e'), sep="")`). Mineral C and N concentrations in unburned sandy soils were lower (mineral horizon, mean total C = `r paste(sprintf(subset(df.stats.CN.sites, ID=='SANDY M')$MEAN.C, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='SANDY M')$SD.C, fmt='%#.1f'),"%", sep="")`; mean total N = `r paste(sprintf(subset(df.stats.CN.sites, ID=='SANDY M')$MEAN.N, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='SANDY M')$SD.N, fmt='%#.1f'),"%", sep="")`). C:N ratios of organic sites were slightly lower but not significantly different (unburned, mean = `r paste(sprintf(subset(df.stats.CN.sites, ID=='ORG O')$MEAN.CN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='ORG O')$SD.CN, fmt='%#.1f'), sep="")`) than in the organic horizons of sandy sites (unburned, mean = `r paste(sprintf(subset(df.stats.CN.sites, ID=='SANDY O')$MEAN.CN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN.sites, ID=='SANDY O')$SD.CN, fmt='%#.1f'), "; ", "ANOVA, p=",sprintf(tukey.CN.OvS$site.type[4], fmt='%#.1e'),sep="")`).
+
+Burning did not significantly change soil total C or N concentrations relative to unburned soil; however, burning did affect C:N ratios. Following the 120 s burn treatment, soil C:N ratios were significantly lower in organic soil (mean=`r paste(sprintf(subset(df.stats.CN, ID == 'ORG-O 120')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN, ID == 'ORG-O 120')$SD, fmt='%#.1f'), sep="")`) compared to unburned controls (organic soil, mean=`r paste(sprintf(subset(df.stats.CN, ID == 'ORG-O 0')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.CN, ID == 'ORG-O 0')$SD, fmt='%#.1f'), "; ", C.N.ratio.test, ", p=",sprintf(subset(df.p.CN, ID == 'ORG-O' & comparison == '120-0')$p.value, fmt='%#.1e'), sep="")`) (Figure `r n+1`). There was no difference in C:N ratios between burned and unburned sandy soil horizons. The interaction between site type (organic vs. sandy) and burn treatment duration in ANOVA model for C:N ratios was not significant.
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=3.5, dpi=300, fig.cap=paste("Figure ", n, ". Soil C:N ratio with burn treatment. Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+n=n+1
+
+# Soil C:N across burn treatments: 
+p3 =ggplot((df.merge.CN), aes(x=burn.trtmt.duration.seconds, y = C.N.ratio)) + 
+  geom_boxplot(aes(group=burn.trtmt.duration.seconds,fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+  geom_text(data=df.cld.CN, aes(y=as.numeric(max.CN), label = cld), vjust = -1, size=3) +
+  theme_bw() +
+  facet_wrap(~soil.type,
+             scales = 'fixed',
+             labeller = labeller(horizon = Horizon_labels,
+                                 soil.type=SoilType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Burn treatment',
+       y = 'C:N ratio',
+       fill = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) +
+  ylim(min(df.merge.CN$C.N.ratio)-0.1, max(df.merge.CN$C.N.ratio)+3)
+
+
+
+
+
+# cowplot::plot_grid(p1,p2, p3, ncol = 1)
+p3
+
+Figure_number_soil_CN_ratio = n
+Figure_soil_CN_ratio=p3
+
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=5, dpi=300, fig.cap=paste("Supplementary Figure ", p_C_and_N_m, ". Soil (A) C and (B) N concentrations with burn treatment in O horizons (left) and mineral soil (right). Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+# See Supplementary Section
+
+p_C_and_N_m = m
+
+m=m+1
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE}
+# Calculations of C lost to burning vs. respiration. Also includes calculations 
+#   of N lost to burning. 
+
+# How about I try to calculate bulk density from the post-burn data?
+core.diameter.cm = 6.0325 
+core.SA.cm2= pi*(core.diameter.cm/2)^2
+
+# Import mass data for end of incubation
+df.end.mass = read.csv('../data/incubations/core-deconstruction.csv')
+
+# Calculate wet bulk density
+df.end.mass <- df.end.mass %>%
+  mutate(O.horizon.volume.cm3 = O.hor.thickness.cm*core.SA.cm2,
+         O.wet.bulk.density.g.cm3 = O.hor.wet.mass.g/O.horizon.volume.cm3,
+         M.horizon.volume.cm3 = M.hor.thickness.cm*core.SA.cm2,
+         M.wet.bulk.density.g.cm3 = M.hor.wet.mass.g/M.horizon.volume.cm3)
+
+# Import moisture data for end of incubation 
+df.end.moisture = read.csv('../data/incubations/soil-moisture-end-of-incubations.csv')
+
+# Create O and M dataframes for moisture data to merge 
+df.end.moisture.O <-  subset(df.end.moisture, horizon == 'O') %>%
+  mutate(O.moisture = percent.moisture) %>%
+  subset(select = c(core.id, horizon, O.moisture))
+
+df.end.moisture.M <-  subset(df.end.moisture, horizon == 'M') %>%
+  mutate(M.moisture = percent.moisture) %>%
+  subset(select = c(core.id, horizon, M.moisture))
+
+# Combine mass and moisture data frames
+df.end.mass <- df.end.mass %>%
+  merge(df.end.moisture.O, by = c('core.id')) %>%
+  merge(df.end.moisture.M, by = c('core.id'), all=TRUE)
+
+# Calculate dry bulk density using horizon moisture
+#   g dry soil / g wet soil = 1 g dry / (1 g dry + X g water)
+#   Where x g water = moisture
+df.end.mass <- df.end.mass %>%
+  # Calcualte dry bulk density:
+  mutate(O.dry.bulk.density.g.cm3 = O.wet.bulk.density.g.cm3*(1/(1+O.moisture)),
+         M.dry.bulk.density.g.cm3 = M.wet.bulk.density.g.cm3*(1/(1+M.moisture)))
+
+# Use dry bulk density to calculate pre-burn dry mass...
+df.core <- read.csv('../data/burn-simulations/core-prep.csv') %>%
+  dplyr::mutate(pre.burn.M.horizon.thickness.cm = pre.burn.core.thickness.cm - pre.burn.O.hor.thickness.cm,
+                pre.burn.O.volume.cm3 = pre.burn.O.hor.thickness.cm*core.SA.cm2,
+                pre.burn.M.volume.cm3 = pre.burn.M.horizon.thickness.cm*core.SA.cm2) %>%
+  subset(select = c(core.id, vegetation, pre.burn.O.volume.cm3, pre.burn.M.volume.cm3,
+                    pre.burn.M.horizon.thickness.cm, pre.burn.O.hor.thickness.cm,
+                    pre.burn.core.thickness.cm, horizon.depth.loss.at.top.of.core.cm)) %>%
+  merge(subset(df.end.mass, select = c(core.id, O.dry.bulk.density.g.cm3,
+                                       M.dry.bulk.density.g.cm3, site.id))) %>%
+  dplyr::mutate(pre.burn.O.dry.mass.g = O.dry.bulk.density.g.cm3 * pre.burn.O.volume.cm3,
+                pre.burn.M.dry.mass.g = M.dry.bulk.density.g.cm3 * pre.burn.M.volume.cm3)
+
+# Now import carbon content. I could use either C content of control cores or of
+#   post-burn cores. Or average together?
+df.C.content.O <- subset(df.merge.CN, burn.trtmt.duration.seconds == 0 & 
+                           horizon == 'O') %>%
+  mutate(O.carbon.percent = C.percent) %>%
+  mutate(O.nitrogen.percent = N.percent) %>%
+  subset(select = c(site, O.carbon.percent,O.nitrogen.percent)) %>%
+  mutate(site.id = site)
+
+
+df.C.content.M <- subset(df.merge.CN, burn.trtmt.duration.seconds == 0 & 
+                           horizon == 'M') %>%
+  mutate(M.carbon.percent = C.percent) %>%
+  mutate(M.nitrogen.percent = N.percent) %>%
+  subset(select = c(site, M.carbon.percent,M.nitrogen.percent)) %>%
+  mutate(site.id = site)
+
+# Now combine carbon data with dry mass data and calculate % Carbon
+df.C <- merge(df.core, df.C.content.O, by = 'site.id') %>%
+  merge(df.C.content.M, by = c('site.id', 'site'), all = TRUE) %>%
+  dplyr::mutate(pre.burn.O.carbon.g = pre.burn.O.dry.mass.g*O.carbon.percent/100, 
+         pre.burn.M.carbon.g = pre.burn.M.dry.mass.g*M.carbon.percent/100,
+         pre.burn.O.nitrogen.g = pre.burn.O.dry.mass.g*O.nitrogen.percent/100, 
+         pre.burn.M.nitrogen.g = pre.burn.M.dry.mass.g*M.nitrogen.percent/100) %>%
+  dplyr::group_by(core.id) %>%
+  dplyr::mutate(pre.burn.total.carbon.g = sum(pre.burn.O.carbon.g,pre.burn.M.carbon.g, na.rm=TRUE),
+         pre.burn.total.nitrogen.g = sum(pre.burn.O.nitrogen.g,pre.burn.M.nitrogen.g, na.rm=TRUE))
+
+
+# Next we need the post-burn C. 
+df.C <- df.C %>%
+  dplyr::mutate(post.burn.O.hor.thickness.cm = pre.burn.O.hor.thickness.cm - horizon.depth.loss.at.top.of.core.cm,
+         post.burn.M.hor.thickness.cm = pre.burn.M.horizon.thickness.cm, 
+         post.burn.O.volume.cm3 = post.burn.O.hor.thickness.cm*core.SA.cm2,
+         post.burn.M.volume.cm3 = pre.burn.M.volume.cm3,
+         post.burn.O.dry.mass.g = O.dry.bulk.density.g.cm3*post.burn.O.volume.cm3,
+         post.burn.M.dry.mass.g = pre.burn.M.dry.mass.g,
+         post.burn.O.carbon.g = post.burn.O.dry.mass.g*O.carbon.percent/100,
+         post.burn.M.carbon.g = pre.burn.M.carbon.g,
+         post.burn.O.nitrogen.g = post.burn.O.dry.mass.g*O.nitrogen.percent/100,
+         post.burn.M.nitrogen.g = pre.burn.M.nitrogen.g) %>%
+  dplyr::group_by(core.id) %>%
+  dplyr::mutate(post.burn.total.carbon.g = sum(post.burn.O.carbon.g, post.burn.M.carbon.g, na.rm=TRUE),
+         carbon.loss.with.burning.g = pre.burn.total.carbon.g - post.burn.total.carbon.g, 
+         fraction.carbon.loss.with.burning = carbon.loss.with.burning.g/pre.burn.total.carbon.g,
+         percent.carbon.loss.with.burning = carbon.loss.with.burning.g/pre.burn.total.carbon.g*100,
+         post.burn.total.nitrogen.g = sum(post.burn.O.nitrogen.g, post.burn.M.nitrogen.g, na.rm=TRUE),
+         nitrogen.loss.with.burning.g = pre.burn.total.nitrogen.g - post.burn.total.nitrogen.g, 
+         fraction.nitrogen.loss.with.burning = nitrogen.loss.with.burning.g/pre.burn.total.nitrogen.g,
+         percent.nitrogen.loss.with.burning = nitrogen.loss.with.burning.g/pre.burn.total.nitrogen.g*100) %>%
+  merge(df.merge.CN, by = c('site','core.id'))
+
+
+df.C <- df.C %>%
+  dplyr::group_by(burn.trtmt.duration.seconds, site.type, horizon) %>%
+  dplyr::mutate(mean.post.burn.total.nitrogen.g = mean(post.burn.total.nitrogen.g),
+         sd.post.burn.total.nitrogen.g = sd(post.burn.total.nitrogen.g),
+         mean.post.burn.total.carbon.g = mean(post.burn.total.carbon.g),
+         sd.post.burn.total.carbon.g = sd(post.burn.total.carbon.g))
+
+
+
+
+
+# Calculate g C and N lost:
+
+df.loss <- df.C %>%
+  subset(burn.trtmt.duration.seconds != 0) %>%
+  dplyr::group_by(core.id) %>%
+  dplyr::mutate(core.carbon.loss.with.burning.g = sum(carbon.loss.with.burning.g), 
+         core.nitrogen.loss.with.burning.g = sum(nitrogen.loss.with.burning.g)) %>%
+  subset(horizon == 'O')
+
+
+df.CN.loss.results <- data.frame(ID = 'ID',
+                                 mean.core.C.loss.burn.g=0, 
+                                 min.core.C.loss.burn.g=0, 
+                                 max.core.C.loss.burn.g=0, 
+                                 sd.core.C.loss.burn.g=0,
+                                 mean.core.N.loss.burn.g=0, 
+                                 min.core.N.loss.burn.g=0, 
+                                 max.core.N.loss.burn.g=0, 
+                                 sd.core.N.loss.burn.g=0)
+
+for (i in c('ORG','SANDY')) {
+  for (j in c(30,120)){
+    x <- subset(df.loss, site.type == i & burn.trtmt.duration.seconds == j)
+      if (dim(x)[1] == 0){
+        next
+      }
+    mean.core.C.loss.burn.g = mean(x$core.carbon.loss.with.burning.g)
+    min.core.C.loss.burn.g = min(x$core.carbon.loss.with.burning.g)
+    max.core.C.loss.burn.g = max(x$core.carbon.loss.with.burning.g)
+    sd.core.C.loss.burn.g = sd(x$core.carbon.loss.with.burning.g)
+    mean.core.N.loss.burn.g = mean(x$core.nitrogen.loss.with.burning.g)
+    min.core.N.loss.burn.g = min(x$core.nitrogen.loss.with.burning.g)
+    max.core.N.loss.burn.g = max(x$core.nitrogen.loss.with.burning.g)
+    sd.core.N.loss.burn.g = sd(x$core.nitrogen.loss.with.burning.g)
+    ID = paste(i,j)
+    temp <- data.frame(ID = ID, 
+                            mean.core.C.loss.burn.g=mean.core.C.loss.burn.g, 
+                            min.core.C.loss.burn.g=min.core.C.loss.burn.g, 
+                            max.core.C.loss.burn.g=max.core.C.loss.burn.g, 
+                            sd.core.C.loss.burn.g=sd.core.C.loss.burn.g,
+                            mean.core.N.loss.burn.g=mean.core.N.loss.burn.g, 
+                            min.core.N.loss.burn.g=min.core.N.loss.burn.g, 
+                            max.core.N.loss.burn.g=max.core.N.loss.burn.g, 
+                            sd.core.N.loss.burn.g=sd.core.N.loss.burn.g)
+        df.CN.loss.results = rbind(df.CN.loss.results, temp)
+  }
+}
+
+
+
+
+
+# Calculate C and N loss:
+
+
+
+# # step 1. Calculate pre-burn dry mass
+# 
+# # Import pre-burn moisture data
+# df.pre.burn.moisture <- read.csv('../data/incubations/calculating-incub-starting-moisture.csv') %>%
+#   mutate(pre.burn.moisture = final.moisture....) %>%
+#   subset(select = c(core.id, pre.burn.moisture))
+# 
+# # Import pre-burn mass data:
+# df.burn.data <- read.csv('../data/burn-simulations/core-prep.csv') %>%
+#   dplyr::mutate(pre.burn.wet.mass.g = pre.burn.wet.soil.and.foil.mass.g - foil.mass.g)
+# 
+# # Calculate pre-burn mass
+# df.pre.mass <- merge(df.pre.burn.moisture, df.burn.data, by = 'core.id') %>%
+#   dplyr::mutate(pre.burn.dry.mass.g = pre.burn.wet.mass.g/(1+pre.burn.moisture)) %>%
+#   mutate(site = site.id)
+# 
+# 
+# # step 2. Calculate pre-burn C content
+# # Use unburned cores as proxy for pre-burn C contet??
+# df.C.content <- subset(df.merge.CN, burn.trtmt.duration.seconds == 0) %>%
+#   subset(select = c(site, horizon, C.percent))
+# 
+# 
+# # Calculate pre-burn C mass (g)
+# df.pre.mass.O <- df.pre.mass %>%
+#   mutate(horizon.thickness.cm = pre.burn.O.hor.thickness.cm) %>%
+#   mutate(pre.burn.horizon.mass.g = horizon.thickness.cm/pre.burn.core.thickness.g)
+#   subset(select = c(core.id, horizon.thickness.cm, pre.burn.horizon.mass.g))
+# 
+# 
+# 
+#   
+#   
+#   
+#   
+#   
+# # ALTERNATIVE APPROACH...
+#   
+# #     Post-burn dry mass = (post.burn.mass.of.wet.soil.and.foil.g - foil.mass.g)*(1-moisture)
+# #         Wet mass at end of incubation
+# #         Dry mass at end of incubation = wet mass at end of incubation * % moisture at end of incubation
+# 
+# 
+# # Import soil moisture data for the end of the incubations:
+# df.end.moisture = read.csv('../data/incubations/soil-moisture-end-of-incubations.csv') %>%
+#   subset(select = c(sample.id, percent.moisture,horizon, core.id))
+#   
+# # Import soil mass data at the end of incubations: 
+# df.end.mass = read.csv('../data/incubations/core-deconstruction.csv')
+# 
+# # Clean up: transform wet soil mass data into two dataframes, one for each horizon 
+# df.end.mass.O = df.end.mass %>%
+#   mutate(horizon='O',
+#          site=site.id) %>%
+#   unite(sample.id, c(core.id, horizon), sep='-', remove=FALSE) %>%
+#   dplyr::mutate(hor.wet.mass.g = O.hor.wet.mass.g) %>%
+#   subset(select = c(sample.id, hor.wet.mass.g, horizon, site))
+# 
+# df.end.mass.M = df.end.mass %>%
+#   mutate(horizon='M',
+#          site=site.id) %>%
+#   unite(sample.id, c(core.id, horizon), sep='-', remove=FALSE) %>%
+#   mutate(hor.wet.mass.g = M.hor.wet.mass.g) %>%
+#   subset(select = c(sample.id, hor.wet.mass.g, horizon, site))
+# 
+# # Recombine horizon data frames and calculate dry mass at end of incubation:
+# df.end.mass <- rbind(df.end.mass.O, df.end.mass.M) %>%
+#   merge(df.end.moisture, by = c('sample.id','horizon')) %>%
+#   dplyr::mutate(dry.ending.mass.hor.g = hor.wet.mass.g/(1+percent.moisture))
+# 
+# 
+# 
+# # Merge with C data and calculate mass of C post-burn for both control and burned cores:
+# df.mass.C.unburned <- df.merge.CN %>%
+#   subset(burn.trtmt.duration.seconds == 0) %>%
+#   merge(df.end.mass, by = c('sample.id', 'horizon', 'core.id', 'site')) %>%
+#   dplyr::mutate(mass.C.g = dry.ending.mass.hor.g*(C.percent/100)) %>%
+#   group_by(core.id) %>%
+#   # Also calculate total wet mass 
+#   mutate(total.unburned.mass.C.g = sum(mass.C.g),
+#          unburned.wet.mass.g = post.burn.mass.of.wet.soil.and.foil.g - foil.mass.g) %>%
+#   subset(select = c(site,total.unburned.mass.C.g, unburned.wet.mass.g)) %>%
+#   unique()
+# 
+# df.mass.C.burned <- df.merge.CN %>%
+#   subset(burn.trtmt.duration.seconds != 0) %>%
+#   merge(df.end.mass, by = c('sample.id', 'horizon', 'core.id', 'site')) %>%
+#   dplyr::mutate(mass.C.g = dry.ending.mass.hor.g*(C.percent/100)) %>%
+#   group_by(core.id) %>%
+#   mutate(total.mass.C.g = sum(mass.C.g),
+#          burned.wet.mass.g = post.burn.mass.of.wet.soil.and.foil.g - foil.mass.g) %>%
+#   subset(select = c(site, core.id, burn.trtmt.duration.seconds,
+#                     site.type,total.mass.C.g, burned.wet.mass.g)) %>%
+#   unique()
+# 
+# 
+# # Combined burned and unburned dataframes and calculate...
+# #   mass of C lost in burn (C in control cores - C in burned cores)
+# #   total wet mass lost in burn (wet mass of control cores - wet mass of burned cores)
+# df.mass.lost.to.burning <- merge(df.mass.C.unburned, df.mass.C.burned, by = 'site') %>%
+#   dplyr::mutate(mass.C.lost.in.burn.g= total.unburned.mass.C.g - total.mass.C.g,
+#                 percent.C.lost = mass.C.lost.in.burn.g/total.unburned.mass.C.g,
+#                 total.wet.mass.lost.in.burn.g = unburned.wet.mass.g-burned.wet.mass.g,
+#                 site = as.integer(site))
+# 
+# df.merge <- merge(df.mass.lost.to.burning, df.cumulative, by = c('site','site.type',
+#                                                                  'burn.trtmt.duration.seconds')) %>%
+#   group_by(site.type, burn.trtmt.duration.seconds) %>%
+#   mutate(mean.percent.C.respired = mean(percent.C.respired), 
+#          sd.percent.C.respired = sd(percent.C.respired),
+#          mean.percent.C.lost.to.burn = mean(percent.C.lost),
+#          sd.percent.C.lost.to.burn = sd(percent.C.lost)) %>%
+#   subset(select = c(site.type, mean.percent.C.respired, sd.percent.C.respired,
+#                     mean.percent.C.lost.to.burn, sd.percent.C.lost.to.burn,
+#                     burn.trtmt.duration.seconds)) %>%
+#   unique()
+# 
+
+
+```
+
+Due to difficulties in disentangling mass loss from water loss during a burn event, we estimated C and N mass pre- and post-burn by multiplying pre-burn soil volume by dry bulk density estimates and soil C concentration estimates from unburned control cores (Supplementary Figure `r m+1`). 
+
+Following the 120 s burn duration treatment, average C mass loss from the organic and sandy soil was estimated to be `r paste(sprintf(subset(df.CN.loss.results, ID == 'ORG 120')$mean.core.C.loss.burn.g, fmt='%#.1f'), "\u00B1", sprintf(subset(df.CN.loss.results, ID == 'ORG 120')$sd.core.C.loss.burn.g, fmt='%#.1f'), " g", sep="")` and `r paste(sprintf(subset(df.CN.loss.results, ID == 'SANDY 120')$mean.core.C.loss.burn.g, fmt='%#.1f'), "\u00B1", sprintf(subset(df.CN.loss.results, ID == 'SANDY 120')$sd.core.C.loss.burn.g, fmt='%#.1f'), " g", sep="")`, respectively. Average N mass loss from the organic and sandy soil was estimated to be `r paste(sprintf(subset(df.CN.loss.results, ID == 'ORG 120')$mean.core.N.loss.burn.g, fmt='%#.3f'), "\u00B1", sprintf(subset(df.CN.loss.results, ID == 'ORG 120')$sd.core.N.loss.burn.g, fmt='%#.3f'), " g", sep="")` and `r paste(sprintf(subset(df.CN.loss.results, ID == 'SANDY 120')$mean.core.N.loss.burn.g, fmt='%#.3f'), "\u00B1", sprintf(subset(df.CN.loss.results, ID == 'SANDY 120')$sd.core.N.loss.burn.g, fmt='%#.3f'), " g", sep="")`, respectively.
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=6, dpi=300, fig.cap=paste("Supplementary Figure ", p_gC_and_gN_m, ". Estimates of grams C (top) and N (bottom) in organic cores (left panel) and sandy cores (right panel).", sep="")}
+
+# See Supplementary section
+
+p_gC_and_gN_m = m
+
+m=m+1
+
+```
+
+
+``` {r, echo=FALSE}
+#### Stats for C:N with increasing DH:
+df.CN.DH <- df.Temp.max %>%
+  mutate(year = '22UW-WB-') %>%
+  unite(core.id, c(year, core.id), sep="", remove = TRUE) %>%
+  subset(select = c(core.id, max.temp.C)) %>%
+  merge(df.merge.CN, by = 'core.id') %>%
+  merge(subset(df.temp.DH, select = c(core.id, thermocouple_position, degree.hours)), by = c('core.id')) %>% 
+  subset(thermocouple_position == 'U')
+
+# model with interaction.
+lm_interaction <- (lm(data=subset(df.CN.DH, horizon == 'O' & thermocouple_position == 'U'), C.N.ratio~degree.hours*site.type))
+
+# summary(lm_interaction)   # interaction is significant
+# lm.p <- summary(lm_interaction)$coefficients[14]  # but the relationship between DH and C:N ratio is not significant (p=0.0680)
+lm.rsquared <- summary(lm_interaction)$adj.r.squared
+lm.p <- summary(lm_interaction)$coefficients[14]
+lm.interaction.p.value <- summary(lm_interaction)$coefficients[16]
+
+# Assign coefficients
+Intercept = lm_interaction$coefficients[1]
+DH = lm_interaction$coefficients[2]
+SiteType = lm_interaction$coefficients[3]
+Interaction = lm_interaction$coefficients[4]
+
+# Form = intercept, SiteType, DH
+lm.coeffs = data.frame(t(c(Intercept, DH, SiteType,Interaction)))
+colnames(lm.coeffs)[1:4] <- c('Intercept','DH','SiteType','Interaction')
+
+Int.ORG.fg=round(lm.coeffs$Intercept+lm.coeffs$SiteType*0,3)
+Int.SANDY.fg=round(lm.coeffs$Intercept+lm.coeffs$DH+lm.coeffs$SiteType*1,3)
+Slope.ORG.fg=round(lm.coeffs$DH,3)
+Slope.SANDY.fg=round(lm.coeffs$DH+lm.coeffs$Interaction,3)
+
+CN.with.DH.test <-  'linear model with interaction between DH and site.type'
+
+# This should give us the data frame we need to plot
+# Derive the sets of co-ordinates we want to plot and add to our dataset
+x <- df.CN.DH
+
+df.CN.DH <- subset(df.CN.DH, horizon == 'O' & thermocouple_position == 'U') %>% unique()
+
+for (i in 1:nrow(df.CN.DH)) {
+  if (df.CN.DH$site.type[i] == 'ORG') {
+    df.CN.DH$LinearFit.CN.DH[i] = lm.coeffs$Intercept + lm.coeffs$DH*df.CN.DH$degree.hours[i] + 0  
+  } else {
+    df.CN.DH$LinearFit.CN.DH[i] = lm.coeffs$Intercept + lm.coeffs$DH*df.CN.DH$degree.hours[i] + lm.coeffs$SiteType*1 + lm.coeffs$Interaction*df.CN.DH$degree.hours[i]*1
+  }
+}
+```
+
+
+There was a modest decrease in C:N ratios with increasing DH in cores from both organic site and O horizons of sandy sites (Supplementary Figure `r m+1`) (linear model, p=`r sprintf(lm.p, fmt='%#.2f')`).
+
+
+```{r, echo=FALSE, fig.width=5, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p_CN_DH_m, ". Soil C:N ratios two days post-burn with increasing degree hours (DH) in organic soils (left panel, y = ", Int.ORG.fg, " + ", Slope.ORG.fg, "x) and O horizons of sandy soils (right panel, y = ", Int.SANDY.fg, " + ", Slope.SANDY.fg, "x) (n=12 soil horizon samples, p=", sprintf(lm.p, fmt='%#.2f'),", $R^2_{adj.}$=", sprintf(lm.rsquared, fmt='%#.2f'),"). DH were calculated based on thermocouple placed at O-mineral interface or at core midpoint. We used a linear model including an interaction term between site type and DH to test for a significant correlation between DH and soil C:N (interation term between site type and DH, p=", sprintf(lm.interaction.p.value, fmt='%#.2f'),").", sep="")}
+
+#See Supplementary section
+
+p_CN_DH_m = m
+
+m=m+1
+
+```
+
+
+
+### Burning and burn-induced changes in soil properties causes decreased respiration
+ 
+```{r, echo=FALSE, warning=FALSE}
+
+df.resp <- read.csv('../data/incubations/multiplexer/decay-model-coefs_test.csv')
+
+df.resp$burn.trtmt <- factor(df.resp$burn.trtmt, levels = c('control','low severity','high severity'))
+
+df.resp <- merge(subset(df.resp, select = c(core.id, r.squared, t, Mt, Mt.fit, k1,k2,M1,M2,data)),
+                 subset(df.meta, horizon == 'O'), by = 'core.id') 
+
+df.resp$burn.trtmt.duration.seconds <- factor(df.resp$burn.trtmt.duration.seconds, levels = c(0,30,120))
+
+
+
+
+
+# Calculate cumulative respiration:
+df.cumulative <- df.resp %>%
+  dplyr::group_by(core.id) %>%
+  dplyr::mutate(end.time = max(t)) %>%
+  subset(t==end.time) %>%
+  dplyr::mutate(percent.C.respired=(1-Mt)*100)
+    
+
+# Test for signiificant affect of burning on percent C respired. 
+res_aov <- aov(percent.C.respired~site.type+burn.trtmt.duration.seconds,data=df.cumulative)
+# No significant interaction effect between site.type and burn.trtmt
+# plot(res_aov)
+
+# List of significant letters for ggplot of C respired as fraction of total
+#   First create empty data frame to store significant letters
+df.cld.C.resp = data.frame(burn.trtmt.duration.seconds = 'duration', 
+                    mean.percent.C.respired = 'y', 
+                    max.percent.C.respired = 'y',
+                    site.type = 'x',
+                    cld = 'cld')
+
+# Run for loop to assign significant letters to appropriate variable
+for (i in c('ORG','SANDY')) {
+      x <- subset(df.cumulative, site.type == i)
+      if (dim(x)[1] == 0){
+        next
+      }
+      anova <- aov(percent.C.respired~burn.trtmt.duration.seconds, data =x)
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(df.cumulative, burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(mean.percent.C.respired=mean(percent.C.respired),
+                  max.percent.C.respired=max(percent.C.respired)) %>%
+        dplyr::arrange(desc(mean.percent.C.respired)) %>%
+        dplyr::mutate(site.type = i)
+      cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+      x.cld$cld <- cld$Letters
+      df.cld.C.resp <- rbind(df.cld.C.resp, x.cld)
+}
+
+
+df.cld.C.resp <- subset(df.cld.C.resp, cld != 'cld')
+
+
+# Now create list of p-values (effect of incubation length on pH:
+df.p.C.resp = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+for (i in c('ORG','SANDY')) {
+      x <- subset(df.cumulative, site.type == i)
+      if (dim(x)[1] == 0){
+        next
+      }
+      anova <- aov(percent.C.respired~burn.trtmt.duration.seconds, data =x)
+      tukey <- TukeyHSD(anova)
+      comparison = rownames(tukey$burn.trtmt.duration.seconds)
+      p.value = tukey$burn.trtmt.duration.seconds[10:12]
+      temp <- data.frame(ID = paste(i), comparison = comparison, p.value)
+      df.p.C.resp <- rbind(df.p.C.resp, temp)
+}
+
+df.p.C.resp <- subset(df.p.C.resp, ID != 'ID')
+
+
+# Calculate mean C respired
+df.stats.C.resp = data.frame(ID = 'ID',MEAN.C.respired.percent=0, SD.C.respired.percent=0)
+
+for (i in c('ORG','SANDY')) {
+  for (j in c(0,30,120)){
+    x <- subset(df.cumulative, site.type == i & burn.trtmt.duration.seconds == j)
+      if (dim(x)[1] == 0){
+        next
+      }
+        MEAN.C.respired.percent = mean(x$percent.C.respired)
+        SD.C.respired.percent = sd(x$percent.C.respired)
+        ID = paste(i,j)
+        temp <- data.frame(ID = ID, 
+                           MEAN.C.respired.percent=MEAN.C.respired.percent, 
+                           SD.C.respired.percent=SD.C.respired.percent)
+        df.stats.C.resp = rbind(df.stats.C.resp, temp)
+  }
+}
+
+df.stats.C.resp <- df.stats.C.resp %>% subset(ID != 'ID')
+
+C_resp_test = 'ANOVA'
+```
+
+Total C respired as a fraction of C remaining post-burn over the course of the 70-day incubation in cores from both organic and sandy sites was significantly lower in burned soil (organic, 120 s burn duration, mean=`r paste(sprintf(subset(df.stats.C.resp, ID == 'ORG 120')$MEAN.C.respired.percent, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.C.resp, ID == 'ORG 120')$SD.C.respired.percent, fmt='%#.1f'), sep="")`; sandy, 120 s burn duration, mean=`r paste(sprintf(subset(df.stats.C.resp, ID == 'SANDY 120')$MEAN.C.respired.percent, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.C.resp, ID == 'SANDY 120')$SD.C.respired.percent, fmt='%#.1f'), sep="")`) compared to unburned organic (organic, mean=`r paste(sprintf(subset(df.stats.C.resp, ID == 'ORG 0')$MEAN.C.respired.percent, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.C.resp, ID == 'ORG 0')$SD.C.respired.percent, fmt='%#.1f'), "; ", C_resp_test, ", p=",sprintf(subset(df.p.C.resp, ID == 'ORG' & comparison == '120-0')$p.value, fmt='%#.4f'), sep="")`) and  sandy cores (mean=`r paste(sprintf(subset(df.stats.C.resp, ID == 'SANDY 0')$MEAN.C.respired.percent, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.C.resp, ID == 'SANDY 0')$SD.C.respired.percent, fmt='%#.1f'), "; ", C_resp_test, ", p=",sprintf(subset(df.p.C.resp, ID == 'SANDY' & comparison == '120-0')$p.value, fmt='%#.2f'), sep="")`) (Supplementary Figure `r m+1`). 
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=4, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p_C_resp_m, ". C respired (as a percent of initial total C) over the entire 70 day incubation of organic cores (left panel) and sandy cores (right panel). Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+# See Supplementary section
+
+p_C_resp_m = m
+
+m=m+1
+
+min.R.squared.decay <- min(df.resp$r.squared)
+```
+
+
+Two-pool decay models resulted in good fits to respiration data from the 70-day incubation (Supplementary Figure `r m+1`; R$^2$ > `r sprintf(min.R.squared.decay, fmt='%#.3f')`).
+
+```{r, echo=FALSE, warning=FALSE}
+df.resp.coefs <- subset(df.resp, select = c(core.id, site.type, k1, k2, M1, M2,
+                                      burn.trtmt.duration.seconds, r.squared,
+                                      site, vegetation)) %>%
+  unique()
+
+# Average respiration coefficients with burning
+df.stats.coefs = data.frame(ID = 'ID',MEAN = 0, SD = 0, coef = 'value')
+
+for (j in c('k1','k2','M1','M2')) {
+  for (i in c('ORG','SANDY')) {
+    for (h in c(0,30,120)) {
+      x <- subset(df.resp.coefs, site.type==i & burn.trtmt.duration.seconds==h) %>%
+        subset(select = c('site.type', 'burn.trtmt.duration.seconds',j))
+      colnames(x)[3] = 'value'
+      if (dim(x)[1]==0) {
+        next
+      }
+      mean = mean(x$value)
+      sd = sd(x$value)
+      ID = paste(i,h,j)
+      temp <- data.frame(ID = ID, MEAN=mean, SD = sd, coef = j)
+      df.stats.coefs = rbind(df.stats.coefs, temp)
+    }
+  }
+}
+
+
+# stats ----
+resp_test = 'Kruskal Wallis test' 
+resp_comparison = 'Pairwise wilcox test'
+
+# df.resp.coefs$site.type <- factor(df.resp.coefs$site.type)
+# df.resp.coefs$site <- factor(df.resp.coefs$site)
+anova <- aov(log(k1)~site.type/site +burn.trtmt.duration.seconds*site.type, data=df.resp.coefs)
+# plot(anova)
+# summary(anova)
+# TukeyHSD(anova)
+
+# this anova violates the assumption of homoscedasticity (assumption of equal variances in the different groups that are being compared). So we move to Kruskal-Wallis tests
+test <- kruskal.test(k1~burn.trtmt.duration.seconds, data=df.resp.coefs)
+# test # So there is a significant difference between burn treatments
+comparison <- pairwise.wilcox.test(df.resp.coefs$k1,
+                                   df.resp.coefs$burn.trtmt.duration.seconds,
+                                   p.adjust.method = 'BH')
+
+
+
+
+# This is a function that takes a triangular matrix of p values and converts it to a square matrix of p-values
+tri.to.squ<-function(x) {
+  rn<-row.names(x)
+  cn<-colnames(x)
+  an<-unique(c(cn,rn))
+  myval<-x[!is.na(x)]
+  mymat<-matrix(1,nrow=length(an),ncol=length(an),dimnames=list(an,an))
+  for(ext in 1:length(cn)) {
+    for(int in 1:length(rn)) {
+      if(is.na(x[row.names(x)==rn[int],colnames(x)==cn[ext]])) next
+      mymat[row.names(mymat)==rn[int],colnames(mymat)==cn[ext]]<-x[row.names(x)==rn[int],colnames(x)==cn[ext]]
+      mymat[row.names(mymat)==cn[ext],colnames(mymat)==rn[int]]<-x[row.names(x)==rn[int],colnames(x)==cn[ext]]
+    }
+    }
+  return(mymat)
+}
+
+# create empty dataframe
+df.cld.coefs <- data.frame('burn.trtmt.duration.seconds'=0, 'max' = 0, 'min'=0,
+                     'site.type'='x', 'cld'=0, 'coef'='x')
+
+# Now create list of significant letters for ggplot: 
+for (i in c('ORG','SANDY')) {
+  for (j in c('k1','k2','M1','M2')) {
+      x <- subset(df.resp.coefs, site.type == i)
+      if (dim(x)[1] == 0){
+        next
+      }
+      x$artificial.column <- x[,which(colnames(df.resp.coefs)==j)]
+      
+      test <- kruskal.test(formula(paste(j, "~burn.trtmt.duration.seconds")),
+                           data=subset(x, site.type ==i))
+      
+      comparison <- pairwise.wilcox.test(x[[j]],
+                                         x$burn.trtmt.duration.seconds,
+                                         p.adjust.method = 'BH')
+      cld <- multcompLetters(tri.to.squ(comparison$p.value))
+      cld <- as.data.frame.list(cld)
+      
+      x.cld <- group_by(subset(x, site.type == i),
+                        burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(max=max(artificial.column),
+                         min=min(artificial.column)) %>%
+        dplyr::arrange((burn.trtmt.duration.seconds)) %>%
+        mutate(site.type = i)
+
+      x.cld$cld <- cld$Letters
+      x.cld$coef=j
+      df.cld.coefs <- rbind(df.cld.coefs, x.cld)
+  }
+}
+      
+# clean up output:
+df.cld.coefs <- subset(df.cld.coefs, cld != 0)
+df.cld.coefs$burn.trtmt.duration.seconds <- factor(df.cld.coefs$burn.trtmt.duration.seconds, levels = c(0,30,120))
+
+# Now create list of p-values : ----
+df.p.coefs = data.frame(ID = 'ID',comparison = 'comparison',coef = 'value', p.value=0)
+ 
+for (j in c('k1','k2','M1','M2')) {
+  for (i in c('ORG','SANDY')) {
+      x <- subset(df.resp.coefs, site.type==i) %>%
+        subset(select = c('site.type', 'burn.trtmt.duration.seconds',j))
+      colnames(x)[3] = 'value'
+      if (dim(x)[1]==0) {
+        next
+      }
+      test <- kruskal.test(value~burn.trtmt.duration.seconds,data=x)
+      comparison <- pairwise.wilcox.test(x$value,
+                                         x$burn.trtmt.duration.seconds,
+                                         p.adjust.method = 'BH')
+      comparison <- tri.to.squ(comparison$p.value)
+      temp <- data.frame(ID = paste(i,j), 
+                         comparison = c('0.30','0.120'), 
+                         coef =j,
+                         p.value=comparison[1, 2:3])
+      df.p.coefs <- rbind(df.p.coefs, temp)
+  }
+}
+
+df.p.coefs <- subset(df.p.coefs, ID != 'ID')
+
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=4, dpi=300, fig.cap=paste("Supplementary Figure ", m, ". Fraction of total initial C remaining over the course of a 70-day incubation of organic cores (top panels) and sandy cores (bottom panels). Due to instrument issues, we use average respiration rates to account for periods of missing data (represented here as grey points).", sep="")}
+
+# See Supplementary Section
+
+p_frac_C_m = m
+
+m=m+1
+
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE}
+
+df.pH.and.resp <- df.merge.CN %>%
+  subset(horizon == 'O' & incubation.period.days == 2) %>%
+  subset(select = c(site, pH, burn.trtmt.duration.seconds)) %>%
+  merge(df.cumulative, by = c('site', 'burn.trtmt.duration.seconds'))
+
+# Does pH correlate with percent C respired?
+lm_interaction = lm(percent.C.respired ~ pH, data = subset(df.pH.and.resp))
+#   Yes, there's a significant negative correlation.
+#   Interaction between site.type and pH is not significant, therefore excluded
+
+lm.rsquared <- summary(lm_interaction)$adj.r.squared
+lm.p <- summary(lm_interaction)$coefficients[8]
+
+# Assign coefficients
+Intercept = lm_interaction$coefficients[1]
+pH = lm_interaction$coefficients[2]
+
+# Form = intercept, SiteType, DH
+lm.coeffs = data.frame(t(c(Intercept, pH)))
+colnames(lm.coeffs)[1:2] <- c('Intercept','pH')
+
+Int=round(lm.coeffs$Intercept,3)
+Slope=round(lm.coeffs$pH,3)
+
+
+
+
+
+lm_pH_Cresp <- lm(data=df.pH.and.resp, percent.C.respired~pH)
+lm.rsquared.pH.resp <- summary(lm_pH_Cresp)$adj.r.square
+lm.p.pH.resp <- summary(lm_pH_Cresp)$coefficients[8]
+
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=4, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p_pH_v_C_m, ". Soil pH versus C respired (as a percent of initial total C) over the entire 70 day incubation (y = ", Int, " + ", Slope, "x; p=", sprintf(lm.p, fmt='%#.2f'),", $R^2_{adj.}$=", sprintf(lm.rsquared.pH.resp, fmt='%#.2f'),").", sep="")}
+
+# See Supplementary Section
+
+p_pH_v_C_m = m
+
+m=m+1
+
+```
+
+
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=5, dpi=300, fig.cap=paste("Supplementary Figure ", p.resp.rate_m, ". Soil respiration rates for the first 10 days of the 70 day incubation of organic soil (top panel) and sandy soil (bottom panel) The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+# See Supplementary Section
+
+p.resp.rate_m = m 
+
+m=m+1
+```
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=5, dpi=300, fig.cap=paste("Supplementary Figure ", p.resp.rate_m, ". Absolute soil respiration rates for the first 10 days of the 70 day incubation of organic soil (top panel) and sandy soil (bottom panel) The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+# See Supplementary Section
+
+p.resp.rate_absolute_m = m 
+
+m=m+1
+```
+
+
+In both organic and sandy soil cores, burning increased fast-cycling C decomposition rates and increased the proportion of C held in the slow-cycling C pool (Figure `r n+1`). Higher fast-cycling C decomposition rates (_k1_) were found following the 120 s burn duration treatment in both organic (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'ORG 120 k1')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'ORG 120 k1')$SD, fmt='%#.1f'), sep="")`) and sandy cores (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'SANDY 120 k1')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'SANDY 120 k1')$SD, fmt='%#.1f'), sep="")`) compared to unburned organic (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'ORG 0 k1')$MEAN, fmt='%#.1e'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'ORG 0 k1')$SD, fmt='%#.1e'), "; ", resp_test, ", p=",sprintf(subset(df.p.coefs, ID == 'ORG k1' & comparison == '0.120')$p.value, fmt='%#.1e'), sep="")`) and  sandy cores (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'SANDY 0 k1')$MEAN, fmt='%#.1e'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'SANDY 0 k1')$SD, fmt='%#.1e'), "; ", resp_test, ", p=",sprintf(subset(df.p.coefs, ID == 'SANDY k1' & comparison == '0.120')$p.value, fmt='%#.1e'), sep="")`) (Figure `r n+1`).
+
+Based on respiration measurements following the 120 s burn duration treatment, the fraction of C held in the fast-cycling C pool (_M1_) decreased in both organic (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'ORG 120 M1')$MEAN, fmt='%#.1e'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'ORG 120 M1')$SD, fmt='%#.1e'), sep="")`) and sandy cores (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'SANDY 120 M1')$MEAN, fmt='%#.1e'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'SANDY 120 M1')$SD, fmt='%#.1e'), sep="")`) compared to unburned organic (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'ORG 0 M1')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'ORG 0 M1')$SD, fmt='%#.1f'), "; ", resp_test, ", p=",sprintf(subset(df.p.coefs, ID == 'ORG M1' & comparison == '0.120')$p.value, fmt='%#.1e'), sep="")`) and sandy soil cores (mean=`r paste(sprintf(subset(df.stats.coefs, ID == 'SANDY 0 M1')$MEAN, fmt='%#.1f'), "\u00B1", sprintf(subset(df.stats.coefs, ID == 'SANDY 0 M1')$SD, fmt='%#.1f'), "; ", resp_test, ", p=",sprintf(subset(df.p.coefs, ID == 'SANDY M1' & comparison == '0.120')$p.value, fmt='%#.1e'), sep="")`) (Figure `r n+1`).
+
+<br>
+
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=4, fig.height=2.5, dpi=300, fig.cap=paste("Figure ", n, ". Grams of C lost to burning vs. grams of C respired during the 70 day incubation.", sep="")}
+
+
+# I made a summary figure of C lost to respiration vs. C lost to burning. C respired is measured via the multiplexer but C lost to burning has to be estimated. For this figure, I estimated pre-burn dry mass on a horizon basis by using the measurements of horizon volume, mass, and moisture content from the end of the incubations to calculate horizon dry bulk density. I assumed that burning didn't change bulk density, so I can use this post-burn, post-incubation bulk density as the pre-burn bulk density. Using bulk density and pre-burn horizon thickness, I calculated pre-burn dry mass and used the C% of unburned cores to calculate the initial mass of C. I repeated this with post-burn horizon thickness to calculate post-burn horizon dry mass and post-burn mass of C. From there, it's straightforward to calculate C loss with burning.
+
+n=n+1
+
+temp <- subset(df.cumulative, select = c(site, burn.trtmt.duration.seconds,percent.C.respired)) %>% 
+  mutate(site = as.factor(site))
+
+df.merge.C.loss <- merge(df.C, temp,
+                  by = c('site', 'burn.trtmt.duration.seconds'), all = TRUE) %>%
+  group_by(site.type, burn.trtmt.duration.seconds) %>%
+  mutate(mean.percent.C.respired = mean(percent.C.respired), 
+         sd.percent.C.respired = sd(percent.C.respired),
+         mean.percent.C.loss.burning = mean(percent.carbon.loss.with.burning),
+         sd.percent.C.loss.burning = sd(percent.carbon.loss.with.burning),
+         mean.percent.N.loss.burning = mean(percent.nitrogen.loss.with.burning),
+         sd.percent.N.loss.burning = sd(percent.nitrogen.loss.with.burning)) %>%
+  subset(select = c(site.type, percent.C.respired, mean.percent.C.respired, sd.percent.C.respired,
+                    mean.percent.C.loss.burning, sd.percent.C.loss.burning,
+                    mean.percent.N.loss.burning, sd.percent.N.loss.burning,
+                    burn.trtmt.duration.seconds, pH, C.N.ratio)) %>%
+  # subset(burn.trtmt.duration.seconds != 0) %>%
+  unique()
+
+## This plot isn't right. This is showing percent of initial pre-burn C lost
+#   to burning and percent of initial post-burn C lost to respiration. But of 
+#   course, we want these both to be percentages of initial PRE-BURN C.
+p=ggplot(df.merge.C.loss, aes(x=mean.percent.C.respired, y = mean.percent.C.loss.burning, 
+                       shape=site.type,color=burn.trtmt.duration.seconds)) +
+  geom_abline(slope=1, intercept=0)+ 
+  geom_point(size=3) + 
+  geom_errorbar(aes(ymin=mean.percent.C.loss.burning-sd.percent.C.loss.burning,
+                    ymax=mean.percent.C.loss.burning+sd.percent.C.loss.burning), width=.2,
+                 position=position_dodge(0.05))+
+  geom_errorbar(aes(xmin=mean.percent.C.respired-sd.percent.C.respired,
+                    xmax=mean.percent.C.respired+sd.percent.C.respired), width=.2,
+                 position=position_dodge(0.05))+
+  # geom_abline(intercept = 0, slope=1)+
+  theme_bw() + 
+  facet_grid(~site.type, labeller = labeller(site.type = SiteType_labels))+
+  scale_color_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+    scale_shape_manual(values = c(16,9),
+                     labels = c('Organic','Sandy'))+
+  labs(x = 'C respired (% of initial)',
+       y = 'C lost during burn \n(% of initial)',
+       color = 'Burn treatment',
+       shape='Site type') +
+  theme(legend.position = 'right',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+
+
+
+
+
+### Make graph with grams C burned and respired:
+
+df.merge.C.loss.grams <- merge(df.C, temp,
+                  by = c('site', 'burn.trtmt.duration.seconds'), all = TRUE) %>%
+  group_by(site.type, burn.trtmt.duration.seconds) %>%
+  mutate(mean.percent.C.respired = mean(percent.C.respired), 
+         sd.percent.C.respired = sd(percent.C.respired),
+         mean.percent.C.loss.burning = mean(percent.carbon.loss.with.burning),
+         sd.percent.C.loss.burning = sd(percent.carbon.loss.with.burning),
+         mean.percent.N.loss.burning = mean(percent.nitrogen.loss.with.burning),
+         sd.percent.N.loss.burning = sd(percent.nitrogen.loss.with.burning),
+         carbon.respired.g = post.burn.total.carbon.g*percent.C.respired/100) %>%
+  subset(select = c(site.type, site,percent.C.respired, mean.percent.C.respired, sd.percent.C.respired,
+                    mean.percent.C.loss.burning, sd.percent.C.loss.burning,
+                    mean.percent.N.loss.burning, sd.percent.N.loss.burning,
+                    burn.trtmt.duration.seconds,
+                    carbon.loss.with.burning.g, post.burn.total.carbon.g,carbon.respired.g)) %>%
+  unique()
+
+
+p.grams=ggplot(subset(df.merge.C.loss.grams), aes(x=carbon.respired.g, y = carbon.loss.with.burning.g, 
+                       shape=site.type,color=burn.trtmt.duration.seconds)) +
+  geom_abline(slope=1, intercept=0)+ 
+  geom_point(size=3) + 
+  # geom_abline(intercept = 0, slope=1)+
+  theme_bw() + 
+  # facet_grid(~site.type, labeller = labeller(site.type = SiteType_labels))+
+  scale_color_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_shape_manual(values = c(16,9),
+                     labels = c('Organic','Sandy'))+
+  labs(x = 'C respired (g)',
+       y = 'C lost during burn (g)',
+       color = 'Burn treatment',
+       shape='Site type') +
+  theme(legend.position = 'right',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) +
+  xlim(0,1)
+
+plot(p.grams)
+
+
+# Now as a stacked bar plot
+df.stack <- gather(df.merge.C.loss.grams, 
+                   key = 'grams', 
+                   value = value, carbon.respired.g,carbon.loss.with.burning.g)
+
+p.grams.stacked=ggplot(df.stack, aes(x=site)) +
+  geom_bar(aes(y = value, fill = grams), position = 'stack',stat='identity') + 
+  # geom_abline(intercept = 0, slope=1)+
+  theme_bw() + 
+  scale_fill_manual(values = c('black','slategray3'),
+                    limits = c('carbon.loss.with.burning.g','carbon.respired.g'),
+                    labels = c('Combustion','Respiration during \n70 day incubation')) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  facet_grid(~site.type~burn.trtmt.duration.seconds, scales = 'free',
+             labeller = labeller(site.type = SiteType_labels))+
+  labs(x = 'Site ID',
+       y = 'C removed from soil (g)',
+       fill = 'Mechanism of C loss:') +
+  theme(legend.position = 'right',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+
+```
+
+
+
+
+```{r, echo false, fig.width=9, fig.height=5, dpi=300, fig.cap=paste("Figure ", n, ". Coefficients for decay rate and fractional C pool size. Different letters represent statistically significant differences in treatments based on Kruskal Wallis test and Pairwise Wilcoxon test (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+n=n+1
+
+p1 = ggplot(df.resp.coefs, aes(x=burn.trtmt.duration.seconds, y = k1)) +
+  geom_boxplot(aes(group = burn.trtmt.duration.seconds, 
+                   fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+  geom_text(data=subset(df.cld.coefs, coef=='k1'), 
+            aes(y=as.numeric(max), label = cld), 
+            vjust = -1, size=4) +
+  theme_bw() +
+  facet_grid(~site.type, 
+             scales = 'free',
+             labeller = labeller(horizon = Horizon_labels,
+                                 site.type=SiteType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Burn Treatment',
+       y = expression(Fast~pool~decay~rate~(d^{"-1"})),
+       fill = 'Burn Treatment:',
+       title='A') + 
+  theme(legend.position = '',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) + 
+  ylim(min(df.resp$k1), 
+       max(df.resp$k1)*1.2)
+
+
+p2= ggplot(df.resp.coefs, aes(x=burn.trtmt.duration.seconds, y = k2)) +
+  geom_boxplot(aes(group = burn.trtmt.duration.seconds, 
+                   fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+  geom_text(data=subset(df.cld.coefs, coef=='k2'), 
+            aes(y=as.numeric(max), label = cld), 
+            vjust = -1, size=4) +
+  theme_bw() +
+  facet_grid(~site.type, 
+             scales = 'free',
+             labeller = labeller(horizon = Horizon_labels,
+                                 site.type=SiteType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  scale_y_continuous(labels = scales::scientific, limits = c(min(df.resp$k2), max(df.resp$k2)*1.2))+
+  labs(x = 'Burn Treatment',
+       y = expression(Slow~pool~decay~rate~(d^{"-1"})),
+       fill = 'Burn Treatment:',
+       title='B') +
+  theme(legend.position = '',strip.text = element_text(size = 10),axis.text = element_text(size = 10),axis.title = element_text(size = 10),legend.text = element_text(size = 10),legend.title = element_text(size = 10)) 
+
+
+p3 = ggplot(df.resp.coefs, aes(x=burn.trtmt.duration.seconds, y = (M1))) +
+  geom_boxplot(aes(group = burn.trtmt.duration.seconds, 
+                   fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+  geom_text(data=subset(df.cld.coefs, coef=='M1'), 
+            aes(y=as.numeric(max), label = cld), 
+            vjust = -1, size=4) +
+  theme_bw() +
+  facet_grid(~site.type, 
+             scales = 'free',
+             labeller = labeller(horizon = Horizon_labels,
+                                 site.type=SiteType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Burn Treatment',
+       y = expression(Fast~pool~fractional~size),
+       fill = 'Burn Treatment:',
+       title='C') +
+  theme(legend.position = '',strip.text = element_text(size = 10),axis.text = element_text(size = 10),axis.title = element_text(size = 10),legend.text = element_text(size = 10),legend.title = element_text(size = 10)) + 
+  ylim(min((df.resp.coefs$M1)), max((df.resp.coefs$M1))*1.2)
+
+
+p4 = ggplot(df.resp.coefs, aes(x=burn.trtmt.duration.seconds, y = (M2))) +
+  geom_boxplot(aes(group = burn.trtmt.duration.seconds, 
+                   fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+  geom_text(data=subset(df.cld.coefs, coef=='M2'), 
+            aes(y=as.numeric(min), label = cld), 
+            vjust = 2, size=4) +
+  theme_bw() +
+  facet_grid(~site.type, 
+             scales = 'free',
+             labeller = labeller(horizon = Horizon_labels,
+                                 site.type=SiteType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Burn Treatment',
+       y = expression(Slow~pool~fractional~size),
+       fill = 'Burn Treatment:',
+       title='D') +
+  theme(legend.position = '',strip.text = element_text(size = 10),axis.text = element_text(size = 10),axis.title = element_text(size = 10),legend.text = element_text(size = 10),legend.title = element_text(size = 10))+  
+  ylim(min((df.resp.coefs$M2)*0.9), 1)
+
+
+cowplot::plot_grid(p1,p2,p3,p4, ncol = 2)
+
+
+Figure_number_decay_coefs=n
+Figure_decay_coefs=cowplot::plot_grid(p1,p2,p3,p4, ncol = 2)
+
+```
+
+
+
+
+
+## Supplementary:
+
+
+
+### Supplementary Tables
+
+
+```{r, echo = FALSE, warning=FALSE}
+# Supplementary Table 1
+
+df.site <- read.csv('../data/soil-properties/soil-texture.csv')
+
+df.location <- read.csv('../data/field-notes/site-locations.csv') %>%
+  mutate(site.id = site)
+
+df.site.and.location <- df.site %>%
+  mutate(site.id = site) %>%
+  merge(subset(df.location, select = c(site.id, location.X, location.Y, Veg.type))) 
+
+
+df.site.M <- subset(df.site.and.location, horizon == 'M') %>%
+  subset(select = c(site.id, texture.class, location.X, location.Y, Veg.type))
+
+df.site.ORG <- subset(df.site.and.location, Veg.type == 'Picea spp. ') %>%
+  subset(select = c(site.id, texture.class, location.X, location.Y, Veg.type))
+
+df.site.merge <- rbind(df.site.M, df.site.ORG)
+
+
+# Create a table with site characteristics
+
+kableExtra::kable(df.site.merge[c(1,3,4,2,5)], 
+      caption = "Supplementary Table 1. Site location and characteristics.", 
+      digits = 2,
+      col.names = c('Site ID',
+              'Latitude',
+              'Longitude',
+              'Soil texture class',
+              'Dominant tree species'),
+      align = "ccccc")
+
+
+```
+
+
+```{r, echo = FALSE, warning= FALSE}
+# Supplementary Table 2
+
+# Create a table with pre-burn C and N content 
+df.CN <- read.csv('../data/soil-properties/total-C-and-N.csv')
+colnames(df.CN)[1] <- 'sample.id'
+
+df.horizon.CN <- df.CN %>%
+  merge(subset(df.meta, select = c(sample.id, site, burn.trtmt.duration.seconds, 
+                                   vegetation, pre.burn.O.hor.thickness.cm,
+                                   pre.burn.core.thickness.cm))) %>%
+  subset(burn.trtmt.duration.seconds == 0) %>%
+  subset(select = c(site, horizon, C.percent, N.percent, vegetation,
+                    pre.burn.O.hor.thickness.cm, pre.burn.core.thickness.cm))
+
+
+df.horizon.O <- subset(df.horizon.CN, horizon == 'O') %>%
+  mutate(horizon.thickness.cm = pre.burn.O.hor.thickness.cm)
+
+
+df.horizon.M <- subset(df.horizon.CN, horizon == 'M') %>%
+  mutate(horizon.thickness.cm = pre.burn.core.thickness.cm-pre.burn.O.hor.thickness.cm)
+
+
+df.horizon.CN <- rbind(df.horizon.O, df.horizon.M)
+
+
+df.horizon.CN <- df.horizon.CN %>% arrange(desc(horizon))
+df.horizon.CN <- arrange(df.horizon.CN, site)
+df.horizon.CN <- arrange(df.horizon.CN, vegetation)
+
+
+# kable(df.horizon.CN, 
+#       caption = "Table 2. Soil C and N concentrations.", 
+#       digits = 2,
+#       col.names = c('Site ID',
+#               'Soil horizon',
+#               'C concentration (%)',
+#               'N concentration (%)'),
+#       align = "cccc")
+
+
+
+kable(df.horizon.CN[c(1,2,8,3,4)], caption = "Supplementary Table 2. Soil C and N concentrations.", 
+      digits = 2, col.names = c('Site ID', 'Soil horizon', 'Horizon thickness (cm)','C concentration (%)', 'N concentration (%)'), 
+    align = 'cccc') %>%
+  kable_classic() %>%
+  pack_rows("Organic sites", 1,6) %>%
+  pack_rows("Sandy sites", 7, 18)
+    
+```
+
+
+```{r, echo = FALSE, warning=FALSE}
+# Supplementary Table 3: A table of g C and g N
+
+df.CN.loss.results <- df.CN.loss.results %>%
+  subset(ID != 'ID')
+  
+
+for (i in 1:nrow(df.CN.loss.results)) {
+  if (df.CN.loss.results$ID[i] == 'ORG 30') {
+    df.CN.loss.results$burn.trtmt.duration.seconds[i] = 30
+    df.CN.loss.results$site.type[i] = 'ORG'
+    
+  } else if (df.CN.loss.results$ID[i] == 'ORG 120') {
+    df.CN.loss.results$burn.trtmt.duration.seconds[i] = 120
+    df.CN.loss.results$site.type[i] = 'ORG'
+    
+  } else if (df.CN.loss.results$ID[i] == 'SANDY 30') {
+    df.CN.loss.results$burn.trtmt.duration.seconds[i] = 30
+    df.CN.loss.results$site.type[i] = 'SANDY'
+    
+  } else if (df.CN.loss.results$ID[i] == 'SANDY 120') {
+    df.CN.loss.results$burn.trtmt.duration.seconds[i] = 120
+    df.CN.loss.results$site.type[i] = 'SANDY'
+  }
+}
+
+
+kable(df.CN.loss.results[c(10, 2, 5, 4, 6, 9, 8)], 
+      caption = "Supplementary Table 3. Mass (g) of soil C and N loss with burning.", 
+      digits = 2, col.names = c('Burn duration treatment (s)', 'mean', 'sd','max', 'mean', 'sd','max'), 
+      align = 'ccccccc') %>%
+  kable_classic() %>%
+  pack_rows("Organic soils", 1,2) %>%
+  pack_rows("Sandy soils", 3,4) %>%
+  add_header_above(c(" " = 2, "Carbon loss (g)" = 3, "Nitrogen loss (g)" = 3))
+
+```
+
+
+
+
+### Supplementary Figures
+
+![Supplementary Figure `r pS_MLC_m`. Experimental use of mass loss calorimeter to simulate fire effects on soil..](Method-figure-draft-images/Mass-loss-calorimeter-graphic.png){width=500}
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=6, dpi=300, fig.cap = paste("Supplementary Figure ", pS_temp_site_m, ". Temperature in soil cores from organic sites and sandy sites during and following the heat dosing treatment as measured by thermocouples placed at the O-mineral interface.", sep="")}
+### Plot
+
+pS_temp_site = ggplot(subset(df.Temp.plot, thermocouple_position =='U'), aes(x=run.time.sec/3600, y = temperature.C)) + 
+  geom_point(aes(color = as.character(duration.s)),size=0.5) +
+  facet_wrap(~site+site.type, 
+             scales = 'free',
+             labeller = labeller(thermocouple_position = ThermoPositions_labels,
+                                 site.type=SiteType_labels)) + 
+  theme_bw() + 
+  scale_color_manual(values = c(Temp_burn_duration_colors),
+                     labels = c(Temp_burn_duration_labels))+
+  labs(x = 'Time (h)',
+       y = expression(paste("Temperature (",degree ~ C,")")), 
+       color = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+pS_temp_site
+```
+
+```{r, echo=FALSE, fig.width=6, fig.height=4, dpi=300, fig.cap = paste("Supplementary Figure ", p_max_temps_m, ". Maximum temperatures reached in soil cores from organic sites (left) and sandy sites (right) during and following the heat dosing treatment as measured by thermocouples placed at the O-mineral interface (top panel) and core base (bottom panel). Different letters represent statistically significant differences in treatments based on Wilcoxon signed rank tests (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+### Plot
+
+df.plot.max.T <- subset(df.temp.and.meta, thermocouple_position %in% c('U','L'))
+
+df.plot.max.T$thermocouple_position <- factor(df.plot.max.T$thermocouple_position, levels = c('U','L'))
+df.cld.max.T$thermocouple_position <- factor(df.cld.max.T$thermocouple_position, levels = c('U','L'))
+  
+p_max_temps = ggplot(df.plot.max.T, aes(x=duration.s)) +
+  # geom_point(aes(x=site, y=max.temp.C, color=(respiration.incubation.length.days), shape = as.character(duration.s))) +
+  # geom_boxplot(aes(x=(respiration.incubation.length.days), y = max.temp.C, fill=as.character(duration.s)), alpha=0.7) +
+  # geom_jitter(aes(shape = respiration.incubation.length.days), width = 0.2) +
+  geom_boxplot(aes(y = max.temp.C, fill=as.character(duration.s)), alpha=0.7)+
+  geom_text(data=df.cld.max.T, aes(y=as.numeric(max), label = cld), vjust = -1, size=3) +
+  facet_grid(thermocouple_position~site.type, 
+             scales = 'free',
+             labeller = labeller(thermocouple_position = ThermoPositions_labels,
+                                 site.type=SiteType_labels)) + 
+  theme_bw() +
+  scale_fill_manual(values = c(Temp_burn_duration_colors),
+                     labels = c(Temp_burn_duration_labels))+
+  labs(x = 'Burn treatment duration (s)',
+       y = expression(paste("Maximum temperature (",degree ~ C,")")), 
+       fill = 'Burn treatment', 
+       color = 'Burn treatment') + 
+  theme(legend.position = 'right',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) +
+  ylim(0,max(df.temp.and.meta$max.temp.C)*1.1)
+
+p_max_temps
+```
+
+
+![Supplementary Figure `r core_images_m`. Photos of unburned and burned soil cores 48 hours after the burn treatments.](potential-images/burned-cores.jpg){width=500}
+
+
+```{r, echo=FALSE, fig.width=4, fig.height=4, dpi=300, fig.cap = paste("Supplementary Figure ", m, ". Site 11 soil matrix temperature during and following the heat dosing treatment as measured by thermocouples placed at the O-mineral interface (top panel) and core base (bottom panel).", sep="")}
+### Plot
+# m=m+1
+# 
+# p = ggplot(subset(df.Temp.plot,site==11 & thermocouple_position!='M'), aes(x=run.time.sec/3600, y = temperature.C)) + 
+#   geom_point(aes(color = as.character(duration.s)),size=0.5) +
+#   facet_grid(thermocouple_position~site.type, 
+#              scales = 'fixed',
+#              labeller = labeller(thermocouple_position = ThermoPositions_labels,
+#                                  site.type=SiteType_labels)) + 
+#   theme_bw() + 
+#   scale_color_manual(values = c(burn_duration_colors),
+#                      labels = c(burn_duration_labels))+
+#   labs(x = 'Time (h)',
+#        y = expression(paste("Temperature (",degree ~ C,")")), 
+#        color = 'Treatment') + 
+#   theme(legend.position = 'bottom',
+#         strip.text = element_text(size = 10),
+#         axis.text = element_text(size = 10),
+#         axis.title = element_text(size = 10),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 10)) 
+# 
+# plot(p)
+```
+
+
+```{r, echo=FALSE, fig.width=4, fig.height=5, dpi=300, fig.cap = paste("Supplementary Figure ", m, ". Soil matrix temperature during and following the heat dosing treatment from subset of cores that contained three thermocouples - at the O-mineral interface (top panel), mid (mid panel), and core base (bottom panel).", sep="")}
+### Plot
+# m=m+1
+# 
+# sites.mid.temps <- subset(df.Temp.plot, thermocouple_position=='M') %>%subset(select = c(core.id)) %>% unique()
+# 
+# p_temp_profiles_with_three_thermocouples = ggplot(subset(df.Temp.plot, core.id %in% sites.mid.temps$core.id), aes(x=run.time.sec/3600, y = temperature.C)) + 
+#   geom_point(aes(color = as.character(duration.s)),size=0.5) +
+#   facet_grid(thermocouple_position~site.type, 
+#              scales = 'free',
+#              labeller = labeller(thermocouple_position = ThermoPositions_labels,
+#                                  site.type=SiteType_labels)) + 
+#   theme_bw() + 
+#   scale_color_manual(values = c(Temp_burn_duration_colors),
+#                      labels = c(Temp_burn_duration_labels))+
+#   labs(x = 'Time (h)',
+#        y = expression(paste("Temperature (",degree ~ C,")")), 
+#        color = 'Treatment') + 
+#   theme(legend.position = 'bottom',
+#         strip.text = element_text(size = 10),
+#         axis.text = element_text(size = 10),
+#         axis.title = element_text(size = 10),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 10)) 
+# 
+# plot(p_temp_profiles_with_three_thermocouples)
+```
+
+
+
+```{r, echo=FALSE, fig.width=4, fig.height=3, dpi=300, fig.cap = paste("Supplementary Figure ", m, ". Soil core depth before and after burning. Error bars represent standard deviation of soil depth across treatments.", sep="")}
+# m=m+1
+# 
+# df.hor.loss <- df.meta
+# df.hor.loss$burn.trtmt.duration.seconds <- factor(df.hor.loss$burn.trtmt.duration.seconds)
+# 
+# p=ggplot(subset(df.hor.loss, burn.trtmt.duration.seconds !=0), 
+#          aes(x=burn.trtmt.duration.seconds, y=horizon.loss.at.top.of.core.cm)) + 
+#   geom_boxplot(aes(x=(burn.trtmt.duration.seconds), y = horizon.loss.at.top.of.core.cm,
+#                    fill=as.character(burn.trtmt.duration.seconds)), alpha=0.7) +
+#   facet_grid(~site.type, 
+#              scales = 'free',
+#              labeller = labeller(thermocouple_position = ThermoPositions_labels,
+#                                  site.type=SiteType_labels)) + 
+#   theme_bw() +
+#   scale_fill_manual(values = c(Temp_burn_duration_colors),
+#                      labels = c(Temp_burn_duration_labels))+
+#   labs(x = 'Burn treatment',
+#        y = "Soil organic layer loss (cm)", 
+#        fill = 'Burn treatment', 
+#        color = 'Burn treatment') + 
+#   theme(legend.position = 'right',
+#         strip.text = element_text(size = 10),
+#         axis.text = element_text(size = 10),
+#         axis.title = element_text(size = 10),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 10)) 
+# 
+# 
+# 
+# 
+# # Make a figure showing pre- and post-burn core thickness
+# df.horizon.pre <- df.hor.loss %>%
+#   subset(horizon == 'O') %>%
+#   group_by(site.type, burn.trtmt.duration.seconds) %>%
+#   dplyr::mutate(mean.core.thickness.cm = mean(pre.burn.core.thickness.cm), 
+#                 sd.core.thickness.cm=sd(pre.burn.core.thickness.cm),
+#                 timepoint='Pre-burn')
+# 
+# 
+# df.horizon.post <- df.hor.loss %>%
+#   subset(horizon == 'O') %>%
+#   group_by(site.type, burn.trtmt.duration.seconds) %>%
+#   dplyr::mutate(mean.core.thickness.cm = mean(pre.burn.core.thickness.cm-horizon.loss.at.top.of.core.cm), 
+#                 sd.core.thickness.cm=sd(pre.burn.core.thickness.cm-horizon.loss.at.top.of.core.cm),
+#                 timepoint='Post-burn')
+# 
+# df.stack <- rbind(df.horizon.pre, df.horizon.post)
+# 
+# 
+# df.stack$timepoint <- factor(df.stack$timepoint, levels=c('Pre-burn','Post-burn'))
+# 
+# p=ggplot(subset(df.stack, burn.trtmt.duration.seconds !=0), 
+#          aes(x=burn.trtmt.duration.seconds, y = mean.core.thickness.cm, fill=(timepoint)))+
+#   geom_bar(stat='identity', position='dodge') +
+#   geom_errorbar(aes(x=burn.trtmt.duration.seconds, 
+#                     ymin=mean.core.thickness.cm-sd.core.thickness.cm, 
+#                     ymax=mean.core.thickness.cm+sd.core.thickness.cm), 
+#                 position='dodge', color='grey40', linewidth=0.8)+
+#   facet_grid(~site.type, scales = 'free',
+#              labeller = labeller(thermocouple_position = ThermoPositions_labels,
+#                                  site.type=SiteType_labels)) + 
+#   theme_bw() +
+#   scale_fill_manual(values = c('black','grey'),
+#                     breaks = c('Pre-burn', 'Post-burn'),
+#                     labels = c('Pre-burn', 'Post-burn')) +
+#   labs(x='Burn treatment',
+#        y = 'Core height (cm)',
+#        fill = 'Timepoint') + 
+#   theme(legend.position = 'bottom',
+#         strip.text = element_text(size = 10),
+#         axis.text = element_text(size = 10),
+#         axis.title = element_text(size = 10),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 10))
+# 
+# plot(p)
+```
+
+
+```{r, echo=FALSE, fig.width=6.5, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", m, ". Because there is not a significant interaction between burn treatment and site type, we can plot them on one figure. Soil pH two days post-burn in organic soil (left panel), O horizon from sandy sites (middle panel), and mineral soil from sandy sites (right panel). Different letters represent statistically significant burn treatment differences based on ANOVA and Tukey's HSD (p<0.5). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+# ### This chunk of code runs stats and plots by separating by site.type's but since there's not a significant interaction between treatment and site.type, this isn't actually necessary, so I'm just placing this code here to save it (and maybe include in the supplementary).
+# 
+# # Average pH with burning
+# df.stats = data.frame(ID = 'ID',MEAN = 0, SD = 0)
+# 
+# # calculate average pH
+# for (i in c('ORG','SANDY')) {
+#   for (j in c('O', 'M')) {
+#     for (h in c(0,30,120)) {
+#       for (k in c(2,21,49,70)) {
+#         x <- subset(df.merge, site.type==i & horizon==j & burn.trtmt.duration.seconds==h & incubation.period.days==k)
+#         if (dim(x)[1]==0) {
+#           next
+#         }
+#         mean = mean(x$pH)
+#         sd = sd(x$pH)
+#         ID = paste(i,j,h,k)
+#         temp <- data.frame(ID = ID, MEAN=mean, SD = sd)
+#         df.stats = rbind(df.stats, temp)
+#       }
+#     }
+#   }
+# }
+# 
+# ### stats: Testing effects of burn duration and soil type on maximum temperature. ----
+# 
+# # Build anova model
+# res_aov <- aov(pH~site.type/site + burn.trtmt.duration.seconds, data = subset(df.merge, horizon == 'O'))
+#   # Interaction between burn treatment and site.type is not significant. Dropping from model. 
+#   # Interaction between burn treatment and site is not significant. Dropping from model.
+# 
+# res_aov <- aov(pH~site + burn.trtmt.duration.seconds, data = subset(df.merge, horizon == 'M'))
+#   # Interaction between burn treatment and site is not significant. Dropping from model 
+# 
+# 
+# # summary(res_aov)
+# #     There's no significant interaction between burn.trtmt and site.type, so for the O horizon we should be reporting pH as one figure or removing letters indicative of significant differences.
+# 
+# # plot(res_aov)
+# 
+# 
+# ### Creating dataframe of significant letters to add to plots. Method 1:
+# df.cld = data.frame(burn.trtmt.duration.seconds = 'duration', 
+#                     max.pH = 'y', 
+#                     site.type = 'site.type',
+#                     horizon = 'horizon',  
+#                     incubation.period.days = 'incubation.period.days',
+#                     cld = 'cld')
+# 
+# # Now create list of significant letters for ggplot:
+# for (i in c('ORG','SANDY')) {
+#   for (j in c('O', 'M')) {
+#     for (h in c(2,21,49,70)) {
+#       x <- subset(df.merge, site.type == i & horizon == j & incubation.period.days == h)
+#       if (dim(x)[1] == 0){
+#         next
+#       }
+#       anova <- aov(pH~site+burn.trtmt.duration.seconds, data = x)
+#       tukey <- TukeyHSD(anova)
+#       cld <- multcompLetters4(anova, tukey)
+#       x.cld <- group_by(subset(df.merge, site.type == i & 
+#                                  horizon == j & 
+#                                  incubation.period.days == h), burn.trtmt.duration.seconds) %>%
+#         dplyr::summarize(max.pH=max(pH)) %>%
+#         dplyr::arrange(desc(max.pH)) %>%
+#         mutate(site.type = i, horizon = j, incubation.period.days = h)
+#       cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+#       x.cld$cld <- cld$Letters
+#       df.cld <- rbind(df.cld, x.cld)
+#     }
+#   }
+# }
+# 
+# df.cld <- subset(df.cld, max.pH != 'y')
+# df.cld$horizon <- factor(df.cld$horizon, levels = c('O','M')) 
+# 
+# 
+# 
+# 
+# 
+# # Now create list of p-values :
+# df.p = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+# 
+# for (i in c('ORG','SANDY')) {
+#   for (j in c('O', 'M')) {
+#     for (h in c(2,21,49,70)) {
+#       x <- subset(df.merge, site.type == i & horizon == j & incubation.period.days == h)
+#       if (dim(x)[1] == 0){
+#         next
+#       }
+#       anova <- aov(pH~burn.trtmt.duration.seconds, data=x)
+#       tukey <- TukeyHSD(anova)
+#       comparison = rownames(tukey$burn.trtmt.duration.seconds)
+#       p.value = tukey$burn.trtmt.duration.seconds[10:12]
+#       temp <- data.frame(ID = paste(i,j,h), comparison = comparison, p.value)
+#       df.p <- rbind(df.p, temp)
+#     }
+#   }
+# }
+# 
+# df.p <- subset(df.p, ID != 'ID')
+# 
+# p =ggplot(subset(df.merge, incubation.period.days==2), aes(x=burn.trtmt.duration.seconds, y = pH)) + 
+#   geom_boxplot(aes(group=burn.trtmt.duration.seconds,fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+#   geom_text(data=subset(df.cld, incubation.period.days==2), aes(y=as.numeric(max.pH), label = cld), vjust = -1, size=3) +
+#   theme_bw() +
+#   facet_grid(site.type~horizon, 
+#              scales = 'fixed',
+#              labeller = labeller(horizon = Horizon_labels,
+#                                  site.type=SiteType_labels)) +
+#   scale_fill_manual(values = c(burn_duration_colors),
+#                     labels = c(burn_duration_labels)) +
+#   scale_x_discrete(labels = c(burn_duration_labels)) +
+#   labs(x = 'Burn treatment',
+#        y = 'Soil pH',
+#        fill = 'Burn treatment:') + 
+#   theme(legend.position = 'bottom',
+#         strip.text = element_text(size = 10),
+#         axis.text = element_text(size = 10),
+#         axis.title = element_text(size = 10),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 10)) +
+#   ylim(min(df.merge$pH)-0.1, max(df.merge$pH)+1)
+# 
+
+```
+
+
+```{r, echo=FALSE, fig.width=5, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p.pH.DH_m, ". Soil pH two days post-burn with increasing degree hours (DH) in O horizons of organic soils (left panel, y = ", Int.ORG.fg, " + ", Slope.ORG.fg, "x) and sandy soils (right panel, y = ", Int.SANDY.fg, " + ", Slope.SANDY.fg, "x) (n=12 soil horizon samples). DH were calculated based on thermocouple placed at O-mineral interface or at core midpoint. We used a linear model including an interaction term between site type and DH to test for a significant correlation between DH and soil pH.", sep="")}
+
+p.pH.DH =ggplot(subset(df.pH.DH, incubation.period.days==2 & horizon == 'O' & thermocouple_position == 'U'),aes(x=degree.hours, y = pH)) + 
+  geom_point(aes(x=degree.hours, y = pH, color = burn.trtmt.duration.seconds)) + 
+  theme_bw() +
+  facet_wrap(~site.type, 
+             scales = 'free',
+             labeller = labeller(site.type=SiteType_labels, 
+                                 thermocouple_position = ThermoPositions_labels)) +
+  scale_color_manual(values = c(Temp_burn_duration_colors),
+                    labels = c(Temp_burn_duration_labels)) +
+  labs(x = 'Degree hours',
+       y = 'Soil pH',
+       color = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+p.pH.DH = p.pH.DH + geom_line(aes(x=degree.hours,y=LinearFit))
+
+
+plot(p.pH.DH)
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=7, dpi=300, fig.cap=paste("Supplementary Figure ", p.pH.incub_m, ". Soil pH over the course of the 70 day incubation. Different letters represent statistically significant differences soil pH across timepoints based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+df.cld.pH.incub$soil.type <- factor(df.cld.pH.incub$soil.type, levels = c('ORG-O','SANDY-O','SANDY-M'))
+
+p.pH.incub = ggplot(data=df.merge, aes(x=as.character(incubation.period.days), y = pH)) + 
+  geom_boxplot(aes(group=as.character(incubation.period.days),fill=as.character(incubation.period.days)),alpha=0.7) + 
+  geom_text(data=df.cld.pH.incub, aes(y=as.numeric(max.pH), label = cld), vjust = -1, size=3) +
+  theme_bw() +
+  facet_grid(soil.type~burn.trtmt.duration.seconds, 
+             scales = 'fixed',
+             labeller = labeller(soil.type=SoilType_labels,
+                                 burn.trtmt.duration.seconds=burn_duration_labels)) +
+  scale_fill_manual(values = c('grey15','grey45', 'grey70','grey90'),
+                    labels = c('2 d','21 d','49 d','70 d'),
+                    breaks = c('2','21','49','70')) +
+  scale_x_discrete(labels = c('2 d','21 d','49 d','70 d'))+
+  labs(x = 'Incubation period',
+       y = 'Soil pH',
+       fill = 'Incubation period') +
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size=10),
+        axis.title = element_text(size=10),
+        legend.text = element_text(size=10),
+        legend.title = element_text(size=10)) +
+  ylim(min(df.merge$pH)-0.1, max(df.merge$pH)+1)
+
+plot(p.pH.incub)
+```
+
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", m, ". Pre-burn soil (A) C and (B) N concentrations in organic and sandy soils. Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+# m=m+1
+# 
+# df.pre.burn.C <- df.merge.CN %>%
+#   subset(burn.trtmt.duration.seconds == 0) %>%
+#   unite(site.hor, c(site.type, horizon), sep='_', remove=FALSE)
+# 
+# 
+# # Make stats for pre-burn C concentrations
+# df.cld.C = data.frame(site.hor = 'site',
+#                     mean.C = 0,
+#                     max.C=0,
+#                     cld = 'cld')
+# 
+# df.p.C = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+# 
+# 
+#       anova <- aov(C.percent~site.hor, data = df.pre.burn.C)
+#       
+#       tukey <- TukeyHSD(anova)
+#       cld <- multcompLetters4(anova, tukey)
+#       x.cld <- group_by(df.pre.burn.C, site.hor) %>%
+#         dplyr::summarize(mean.C=mean(C.percent),
+#                   max.C=max(C.percent)) %>%
+#         dplyr::arrange(desc(mean.C)) 
+#       cld <- as.data.frame.list(cld$site.hor)
+#       x.cld$cld <- cld$Letters
+#       df.cld.C <- rbind(df.cld.C, x.cld)
+#       
+#       comparison = rownames(tukey$site.hor)
+#       p.value = tukey$site.hor[10:12]
+#       temp <- data.frame(ID = paste(j), comparison = comparison, p.value)
+#       df.p.C <- rbind(df.p.C, temp)
+# 
+# 
+# df.cld.C <- subset(df.cld.C, cld != 'cld')
+# 
+# 
+# 
+# 
+# pC =ggplot(subset(df.pre.burn.C, burn.trtmt.duration.seconds == 0), 
+#            aes(x=site.hor, y = C.percent)) + 
+#   geom_boxplot(aes(group=site.hor), fill='grey70',alpha=0.7) + 
+#   geom_text(data=df.cld.C, aes(y=as.numeric(max.C), label = cld), vjust = -1, size=3) +
+#   theme_bw() +
+#   # scale_fill_manual(values = c(burn_duration_colors),
+#   #                   labels = c(burn_duration_labels)) +
+#   scale_x_discrete(labels = c('Organic', 'Sandy \nO horizon','Sandy \nmineral soil'),
+#                    limits = c('ORG_O', 'SANDY_O','SANDY_M')) +
+#   labs(x = '',
+#        y = 'Soil total C (%)',
+#        fill = '') + 
+#   theme(legend.position = '',
+#         strip.text = element_text(size = 10),
+#         axis.text = element_text(size = 10),
+#         axis.title = element_text(size = 10),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 10)) +
+#   ylim(0,55)
+# 
+# 
+# 
+# 
+# # Repeat for Nitrogen:
+# df.cld.N = data.frame(site.hor = 'site',
+#                     mean.N = 0,
+#                     max.N=0,
+#                     cld = 'cld')
+# 
+# df.p.N = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+# 
+# 
+#       anova <- aov(N.percent~site.hor, data = df.pre.burn.C)
+#       
+#       tukey <- TukeyHSD(anova)
+#       cld <- multcompLetters4(anova, tukey)
+#       x.cld <- group_by(df.pre.burn.C, site.hor) %>%
+#         dplyr::summarize(mean.N=mean(N.percent),
+#                   max.N=max(N.percent)) %>%
+#         dplyr::arrange(desc(mean.N)) 
+#       cld <- as.data.frame.list(cld$site.hor)
+#       x.cld$cld <- cld$Letters
+#       df.cld.N <- rbind(df.cld.N, x.cld)
+#       
+#       comparison = rownames(tukey$site.hor)
+#       p.value = tukey$site.hor[10:12]
+#       temp <- data.frame(ID = paste(j), comparison = comparison, p.value)
+#       df.p.N <- rbind(df.p.N, temp)
+# 
+# 
+# df.cld.N <- subset(df.cld.N, cld != 'cld')
+# 
+# 
+# 
+# 
+# pN =ggplot(subset(df.pre.burn.C), 
+#            aes(x=site.hor, y = N.percent)) + 
+#   geom_boxplot(aes(group=site.hor), fill='grey70',alpha=0.7) + 
+#   geom_text(data=df.cld.N, aes(y=as.numeric(max.N), label = cld), vjust = -1, size=3) +
+#   theme_bw() +
+#   # scale_fill_manual(values = c(burn_duration_colors),
+#   #                   labels = c(burn_duration_labels)) +
+#   scale_x_discrete(labels = c('Organic', 'Sandy \nO horizon','Sandy \nmineral soil'),
+#                    limits = c('ORG_O', 'SANDY_O','SANDY_M')) +
+#   labs(x = '',
+#        y = 'Soil total N (%)',
+#        fill = '') + 
+#   theme(legend.position = '',
+#         strip.text = element_text(size = 10),
+#         axis.text = element_text(size = 10),
+#         axis.title = element_text(size = 10),
+#         legend.text = element_text(size = 10),
+#         legend.title = element_text(size = 10)) +
+#   ylim(0,2.5)
+# 
+# 
+# cowplot::plot_grid(pC,pN,ncol=2)
+```
+
+
+```{r, echo=FALSE, fig.width=6, fig.height=5, dpi=300, fig.cap=paste("Supplementary Figure ", p_C_and_N_m, ". Soil (A) C and (B) N concentrations with burn treatment in O horizons (left) and mineral soil (right). Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+# Make stats for soil C conc. varying with burn treatment
+df.cld.C = data.frame(burn.trtmt.duration.seconds = 'duration',
+                    mean.C = 0,
+                    max.C=0,
+                    soil.type = 'horizon',
+                    cld = 'cld')
+
+df.p.C = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+for (j in c('ORG-O', 'SANDY-O', 'SANDY-M')) {
+      x <- subset(df.merge.CN, soil.type == j)
+      if (dim(x)[1] == 0){
+        next
+      }
+      if (j == 'O'){ 
+        anova <- aov(C.percent~site.type/site+burn.trtmt.duration.seconds, data = x)
+      } else {
+          anova <- aov(C.percent~site+burn.trtmt.duration.seconds, data =x)
+      }
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(subset(df.merge.CN, soil.type == j), burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(mean.C=mean(C.percent),
+                  max.C=max(C.percent)) %>%
+        dplyr::arrange(desc(mean.C)) %>%
+        mutate(soil.type = j)
+      cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+      x.cld$cld <- cld$Letters
+      df.cld.C <- rbind(df.cld.C, x.cld)
+      
+      comparison = rownames(tukey$burn.trtmt.duration.seconds)
+      p.value = tukey$burn.trtmt.duration.seconds[10:12]
+      temp <- data.frame(ID = paste(j), comparison = comparison, p.value)
+      df.p.C <- rbind(df.p.C, temp)
+}
+
+df.cld.C <- subset(df.cld.C, cld != 'cld')
+df.cld.C$soil.type <- factor(df.cld.C$soil.type, levels = c('ORG-O', 'SANDY-O', 'SANDY-M'))
+
+
+
+
+p1 =ggplot((df.merge.CN), aes(x=burn.trtmt.duration.seconds, y = C.percent)) + 
+  geom_boxplot(aes(group=burn.trtmt.duration.seconds,fill = burn.trtmt.duration.seconds), alpha=0.7) + 
+  geom_text(data=df.cld.C, aes(y=as.numeric(max.C), label = cld), vjust = 0.5, hjust=-2.5, size=3) +
+  theme_bw() +
+  facet_wrap(~soil.type, 
+             scales = 'free',ncol = 3,
+             labeller = labeller(horizon = Horizon_labels,
+                                 soil.type=SoilType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Treatment',
+       y = 'Soil total C (%)',
+       fill = 'Treatment', 
+       title = 'A') + 
+  theme(legend.position = '',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+
+# Make stats for soil N concentration varying with burn treatment
+df.cld.N = data.frame(burn.trtmt.duration.seconds = 'duration',
+                    mean.N = 0,
+                    max.N=0,
+                    soil.type = 'horizon',
+                    cld = 'cld')
+
+df.p.N = data.frame(ID = 'ID',comparison = 'comparison',p.value=0)
+
+for (j in c('ORG-O', 'SANDY-O', 'SANDY-M')) {
+      x <- subset(df.merge.CN, soil.type == j)
+      if (dim(x)[1] == 0){
+        next
+      }
+      if (j == 'O'){
+        anova <- aov(N.percent~site.type/site+burn.trtmt.duration.seconds, data = x)
+      } else {
+          anova <- aov(N.percent~site+burn.trtmt.duration.seconds, data =x)
+      }
+      tukey <- TukeyHSD(anova)
+      cld <- multcompLetters4(anova, tukey)
+      x.cld <- group_by(subset(df.merge.CN, soil.type == j), burn.trtmt.duration.seconds) %>%
+        dplyr::summarize(mean.N=mean(N.percent),
+                  max.N=max(N.percent)) %>%
+        dplyr::arrange(desc(mean.N)) %>%
+        mutate(soil.type = j)
+      cld <- as.data.frame.list(cld$burn.trtmt.duration.seconds)
+      x.cld$cld <- cld$Letters
+      df.cld.N <- rbind(df.cld.N, x.cld)
+      
+      comparison = rownames(tukey$burn.trtmt.duration.seconds)
+      p.value = tukey$burn.trtmt.duration.seconds[10:12]
+      temp <- data.frame(ID = paste(j), comparison = comparison, p.value)
+      df.p.N <- rbind(df.p.N, temp)
+}
+
+df.cld.N <- subset(df.cld.N, cld != 'cld')
+df.cld.N$soil.type <- factor(df.cld.N$soil.type, levels = c('ORG-O', 'SANDY-O', 'SANDY-M'))
+
+
+
+p2 =ggplot((df.merge.CN), aes(x=burn.trtmt.duration.seconds, y = N.percent)) + 
+  geom_boxplot(aes(group=burn.trtmt.duration.seconds,fill = burn.trtmt.duration.seconds), alpha=0.7) +  
+  geom_text(data=df.cld.N, aes(y=as.numeric(max.N), label = cld), vjust = 0.5, hjust=-2, size=3) +
+  theme_bw() +
+  facet_wrap(~soil.type, ncol = 3,
+             scales = 'free',
+             labeller = labeller(horizon = Horizon_labels,
+                                 soil.type=SoilType_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Treatment',
+       y = 'Soil total N (%)',
+       fill = 'Treatment',
+       title='B') + 
+  theme(legend.position = '',
+        strip.text = element_text(size = 9),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+p_C_and_N = cowplot::plot_grid(p1,p2,ncol=1)
+
+p_C_and_N
+```
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=6, dpi=300, fig.cap=paste("Supplementary Figure ", p_gC_and_gN_m, ". Estimates of grams C (top) and N (bottom) in organic cores (left panel) and sandy cores (right panel).", sep="")}
+
+pN = ggplot(df.C, aes(x=burn.trtmt.duration.seconds, y = mean.post.burn.total.nitrogen.g, fill = burn.trtmt.duration.seconds), alpha = 0.7) +
+    geom_bar(stat='identity', position='dodge', alpha = 0.7) +
+    geom_errorbar(aes(x=burn.trtmt.duration.seconds, 
+                    ymin=mean.post.burn.total.nitrogen.g-sd.post.burn.total.nitrogen.g, 
+                    ymax=mean.post.burn.total.nitrogen.g+sd.post.burn.total.nitrogen.g), 
+                position='dodge', color='grey35', linewidth=0.8)+
+  facet_grid(~site.type, scales = 'free',
+             labeller = labeller(thermocouple_position = ThermoPositions_labels,
+                                 site.type=SiteType_labels)) + 
+  theme_bw() +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +    
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x='Burn treatment',
+       y = 'Total N (g)',
+       fill = 'Burn treatment:', 
+       title = 'B') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10))
+
+
+pC = ggplot(df.C, aes(x=burn.trtmt.duration.seconds, y = mean.post.burn.total.carbon.g, fill = burn.trtmt.duration.seconds), alpha = 0.7) +
+    geom_bar(stat='identity', position='dodge', alpha = 0.7) +
+    geom_errorbar(aes(x=burn.trtmt.duration.seconds, 
+                    ymin=mean.post.burn.total.carbon.g-sd.post.burn.total.carbon.g, 
+                    ymax=mean.post.burn.total.carbon.g+sd.post.burn.total.carbon.g), 
+                position='dodge', color='grey35', linewidth=0.8)+
+  facet_grid(~site.type, scales = 'free',
+             labeller = labeller(thermocouple_position = ThermoPositions_labels,
+                                 site.type=SiteType_labels)) + 
+  theme_bw() +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +  
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x='Burn treatment',
+       y = 'Total C (g)',
+       fill = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10))
+
+p_gC_and_gN = cowplot::plot_grid(pC, pN, ncol=1)
+
+p_gC_and_gN
+```
+
+
+
+```{r, echo=FALSE, fig.width=5, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p_CN_DH_m, ". Soil C:N ratios two days post-burn with increasing degree hours (DH) in organic soils (left panel, y = ", Int.ORG.fg, " + ", Slope.ORG.fg, "x) and O horizons of sandy soils (right panel, y = ", Int.SANDY.fg, " + ", Slope.SANDY.fg, "x) (n=12 soil horizon samples, p=", sprintf(lm.p, fmt='%#.2f'),", $R^2_{adj.}$=", sprintf(lm.rsquared, fmt='%#.2f'),"). DH were calculated based on thermocouple placed at O-mineral interface or at core midpoint. We used a linear model including an interaction term between site type and DH to test for a significant correlation between DH and soil C:N (interation term between site type and DH, p=", sprintf(lm.interaction.p.value, fmt='%#.2f'),").", sep="")}
+
+p_CN_DH =ggplot(subset(df.CN.DH, horizon == 'O' & thermocouple_position == 'U'),
+          aes(x=degree.hours, y = C.N.ratio)) +
+  geom_point(aes(x=degree.hours, y = C.N.ratio, color = burn.trtmt.duration.seconds)) +
+  geom_line(aes(x=degree.hours,y=LinearFit.CN.DH))+
+  theme_bw() +
+  facet_wrap(~soil.type,
+             scales = 'free',
+             labeller = labeller(soil.type=SoilType_labels,
+                                 thermocouple_position = ThermoPositions_labels)) +
+  scale_color_manual(values = c(Temp_burn_duration_colors),
+                    labels = c(Temp_burn_duration_labels)) +
+  labs(x = 'Degree hours',
+       y = 'Soil C:N ratio',
+       color = 'Burn treatment:') +
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+plot(p_CN_DH)
+  
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=4, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p_C_resp_m, ". C respired (as a percent of total C at beginning of incubation) over the entire 70 day incubation of organic cores (left panel) and sandy cores (right panel). Different letters represent statistically significant differences in treatments based on ANOVA and Tukey's HSD (p<0.05). The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+
+p_C_resp = ggplot(df.cumulative, aes(x=burn.trtmt.duration.seconds, y = percent.C.respired)) +
+  geom_boxplot(aes(group=burn.trtmt.duration.seconds, fill = burn.trtmt.duration.seconds), alpha=0.7)+
+  geom_text(data=df.cld.C.resp, aes(y=as.numeric(max.percent.C.respired), label = cld), vjust = -1, size=3) +
+  theme_bw() +
+  facet_grid(~site.type, 
+             scales = 'free',
+             labeller = labeller(horizon = Horizon_labels,
+                                 site.type=SiteType_labels, 
+                                 burn.trtmt.duration.seconds=burn_duration_labels)) +
+  scale_fill_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Burn treatment',
+       y = 'C respired (% of initial)',
+       fill = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) +
+  ylim(0,max(as.numeric(df.cld.C.resp$max.percent.C.respired))*1.1)
+
+plot(p_C_resp)
+min.R.squared.decay <- min(df.resp$r.squared)
+```
+
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=4, dpi=300, fig.cap=paste("Supplementary Figure ", p_frac_C_m, ". Fraction of remaining post-burn total C over the course of a 70-day incubation of organic cores (top panels) and sandy cores (bottom panels). Due to instrument issues, we use average respiration rates to account for periods of missing data (represented here as grey points).", sep="")}
+
+
+for (i in 1:nrow(df.resp)){
+  if (df.resp$data[i]=='missing') {
+        df.resp$Mt.exptrapolation[i]=df.resp$Mt[i]
+        df.resp$Mt.raw[i]=NA
+  } else {
+    df.resp$Mt.exptrapolation[i]=df.resp$Mt[i]
+        df.resp$Mt.raw[i]=df.resp$Mt[i]
+  }
+}
+
+p_frac_C = ggplot(df.resp) +
+  geom_point(aes(x=t, 
+                 y = Mt.exptrapolation), 
+             color='grey',size=0.8) + 
+  geom_point(aes(x=t, 
+                 y = Mt.raw, color = burn.trtmt.duration.seconds),
+             size=0.8) + 
+  # geom_line(data=df.resp, 
+  #           aes(x=t, y = Mt.fit, group = core.id),
+  #               color = 'green3', alpha=0.5, linewidth=0.1)+
+  theme_bw() +
+  facet_grid(~site.type~burn.trtmt.duration.seconds, 
+             scales = 'free',
+             labeller = labeller(horizon = Horizon_labels,
+                                 site.type=SiteType_labels, 
+                                 burn.trtmt.duration.seconds=burn_duration_labels)) +
+  scale_color_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  # scale_x_discrete(labels = c(burn_duration_labels)) +
+  labs(x = 'Time (d)',
+       y = 'Fractional C remaining',
+       fill = 'Burn treatment:') + 
+  theme(legend.position = '',strip.text = element_text(size = 10),axis.text = element_text(size = 10),axis.title = element_text(size = 10),legend.text = element_text(size = 10),legend.title = element_text(size = 10))
+
+p_frac_C
+
+```
+
+```{r, echo=FALSE, warning=FALSE, fig.width=4, fig.height=3, dpi=300, fig.cap=paste("Supplementary Figure ", p_pH_v_C_m, ". Soil pH versus C respired (as a percent of initial total C) over the entire 70 day incubation (y = ", Int, " + ", Slope, "x; p=", sprintf(lm.p, fmt='%#.2f'),", $R^2_{adj.}$=", sprintf(lm.rsquared.pH.resp, fmt='%#.2f'),").", sep="")}
+
+
+p_pH_v_C = ggplot(df.pH.and.resp, aes(x=pH, y = percent.C.respired)) +
+  geom_point(aes(color=burn.trtmt.duration.seconds), alpha=0.7)+
+  theme_bw() +
+  geom_smooth(formula = y~x, method='lm', se=FALSE, color = 'grey40') + 
+  # stat_smooth(method='lm', se=FALSE, color = 'grey40') +
+  # facet_grid(~site.type, 
+  #            scales = 'free',
+  #            labeller = labeller(horizon = Horizon_labels,
+  #                                site.type=SiteType_labels, 
+  #                                burn.trtmt.duration.seconds=burn_duration_labels)) +
+  scale_color_manual(values = c(burn_duration_colors),
+                    labels = c(burn_duration_labels)) +
+  labs(x = 'Soil pH',
+       y = 'C respired (% of initial)',
+       color = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+plot(p_pH_v_C)
+
+
+
+```
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=5, dpi=300, fig.cap=paste("Supplementary Figure ", p.resp.rate_m, ". Soil respiration rates for the first 10 days of the 70 day incubation of organic soil (top panel) and sandy soil (bottom panel). Initial C refers to total C at the beginning of the incubation. The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+
+df.resp.rate <- read.csv('../data/incubations/multiplexer/processed-respiration-data.csv')
+
+# p.resp.rate = ggplot(df.resp.rate) +
+#   geom_point(aes(x=whole.days.since.wet.up, 
+#                  y = g.CO2C.per.initial.g.C.per.day, 
+#                  color = site.id), size=1) + 
+#   geom_line(aes(x=whole.days.since.wet.up, y = g.CO2C.per.initial.g.C.per.day, color = site.id))+
+#   facet_wrap(~burn.trtmt, scales='fixed')
+
+
+# Create a variable with the order of the days for use in plotting later:
+df.resp.rate$sort_order <- df.resp.rate$whole.days.since.wet.up
+
+# Rename all teh burn trtmts to match formatting of earlier files
+for (i in 1:nrow(df.resp.rate)) {
+  if (df.resp.rate$burn.trtmt[i] == 'control') {
+    df.resp.rate$burn.trtmt.duration.seconds[i] = 0
+  } else if (df.resp.rate$burn.trtmt[i] == 'low severity') {
+    df.resp.rate$burn.trtmt.duration.seconds[i] = 30
+  } else if (df.resp.rate$burn.trtmt[i] == 'high severity') {
+    df.resp.rate$burn.trtmt.duration.seconds[i] = 120
+  }
+}
+
+# Merge df.resp.rate with site.type variables:
+for (i in 1:nrow(df.resp.rate)) {
+  if (df.resp.rate$vegetation[i] == 'Picea_spp.') {
+    df.resp.rate$site.type[i] = 'ORG'
+  } else if (df.resp.rate$vegetation[i] == 'Pinus_banksiana') {
+    df.resp.rate$site.type[i] = 'SANDY'
+
+  }
+}
+
+
+
+p.resp.rate = ggplot(subset(df.resp.rate, whole.days.since.wet.up < 10 & burn.trtmt.duration.seconds != 30), 
+                     aes(x=reorder(as.character(whole.days.since.wet.up), sort_order), 
+                          fill = as.character(burn.trtmt.duration.seconds),
+                          y = g.CO2C.per.initial.g.C.per.day), alpha = 0.5) + 
+  geom_boxplot(alpha = 0.7) + 
+  # geom_jitter(alpha = 0.7, width = 0.2) + 
+  theme_bw() + 
+  scale_fill_manual(values = c(burn_duration_colors),
+                     labels = c(burn_duration_labels))+
+  scale_color_manual(values = c(burn_duration_colors),
+                     labels = c(burn_duration_labels))+
+  facet_wrap(~site.type, ncol=1, scales = 'free', 
+             labeller = labeller(site.type = SiteType_labels)) +
+  labs(x = 'Time (d)',
+       y = expression(Soil~respiration~rate~(g~C-CO[2]~g^{"-1"}~initial~C~day^{"-1"})), 
+       fill = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+p.resp.rate
+```
+
+
+```{r, echo=FALSE, warning=FALSE, fig.width=6, fig.height=5, dpi=300, fig.cap=paste("Supplementary Figure ", p.resp.rate_absolute_m, ". Absolute soil respiration rates for the first 10 days of the 70 day incubation of organic soil (top panel) and sandy soil (bottom panel) The central horizontal line indicates the median, the upper and lower bounds of the box indicate the inter-quartile range (IQR), the upper and lower whiskers reach the largest or smallest values within a maximum of 1.5 * IQR, and data beyond the whiskers are indicated as individual points.", sep="")}
+# Try to recreate previous supplementary figure using g C respired per pre-burn total C:
+
+
+# # Recreate df.C dataframe but don't merge it with CN data, therefore keeping
+# #   all the core IDs.
+# 
+# # Now combine carbon data with dry mass data and calculate % Carbon
+# df.C.pre <- merge(df.core, df.C.content.O, by = 'site.id') %>%
+#   merge(df.C.content.M, by = c('site.id', 'site'), all = TRUE) %>%
+#   dplyr::mutate(pre.burn.O.carbon.g = pre.burn.O.dry.mass.g*O.carbon.percent/100, 
+#          pre.burn.M.carbon.g = pre.burn.M.dry.mass.g*M.carbon.percent/100,
+#          pre.burn.O.nitrogen.g = pre.burn.O.dry.mass.g*O.nitrogen.percent/100, 
+#          pre.burn.M.nitrogen.g = pre.burn.M.dry.mass.g*M.nitrogen.percent/100) %>%
+#   dplyr::group_by(core.id) %>%
+#   dplyr::mutate(pre.burn.total.carbon.g = sum(pre.burn.O.carbon.g,pre.burn.M.carbon.g, na.rm=TRUE),
+#          pre.burn.total.nitrogen.g = sum(pre.burn.O.nitrogen.g,pre.burn.M.nitrogen.g, na.rm=TRUE))
+# 
+# 
+# # Next we need the post-burn C. 
+# df.C.pre <- df.C.pre %>%
+#   dplyr::mutate(post.burn.O.hor.thickness.cm = pre.burn.O.hor.thickness.cm - horizon.depth.loss.at.top.of.core.cm,
+#          post.burn.M.hor.thickness.cm = pre.burn.M.horizon.thickness.cm, 
+#          post.burn.O.volume.cm3 = post.burn.O.hor.thickness.cm*core.SA.cm2,
+#          post.burn.M.volume.cm3 = pre.burn.M.volume.cm3,
+#          post.burn.O.dry.mass.g = O.dry.bulk.density.g.cm3*post.burn.O.volume.cm3,
+#          post.burn.M.dry.mass.g = pre.burn.M.dry.mass.g,
+#          post.burn.O.carbon.g = post.burn.O.dry.mass.g*O.carbon.percent/100,
+#          post.burn.M.carbon.g = pre.burn.M.carbon.g) %>%
+#   dplyr::group_by(core.id) %>%
+#   dplyr::mutate(post.burn.total.carbon.g = sum(post.burn.O.carbon.g, post.burn.M.carbon.g, na.rm=TRUE),
+#          carbon.loss.with.burning.g = pre.burn.total.carbon.g - post.burn.total.carbon.g, 
+#          fraction.carbon.loss.with.burning = carbon.loss.with.burning.g/pre.burn.total.carbon.g,
+#          percent.carbon.loss.with.burning = carbon.loss.with.burning.g/pre.burn.total.carbon.g*100) 
+# 
+# 
+# 
+# 
+# 
+# # Rename all teh burn trtmts to match formatting of earlier files
+# for (i in 1:nrow(df.test)) {
+#   if (df.test$burn.trtmt[i] == 'control') {
+#     df.test$burn.trtmt.duration.seconds[i] = 0
+#   } else if (df.test$burn.trtmt[i] == 'low severity') {
+#     df.test$burn.trtmt.duration.seconds[i] = 30
+#   } else if (df.test$burn.trtmt[i] == 'high severity') {
+#     df.test$burn.trtmt.duration.seconds[i] = 120
+#   }
+# }
+# 
+# # Merge df.test with site.type variables:
+# for (i in 1:nrow(df.test)) {
+#   if (df.test$vegetation[i] == 'Picea_spp.') {
+#     df.test$site.type[i] = 'ORG'
+#   } else if (df.test$vegetation[i] == 'Pinus_banksiana') {
+#     df.test$site.type[i] = 'SANDY'
+# 
+#   }
+# }
+# 
+# 
+# 
+# df.pre <- subset(df.test, select = c(core.id,
+#                                         site.type,
+#                                         whole.days.since.wet.up, 
+#                                         burn.trtmt.duration.seconds,
+#                                         g.CO2C.per.initial.g.C.per.day,
+#                                         mean.CO2C_g_respired, g.CO2C.per.day)) %>%
+#   merge(subset(df.C.pre, select = c(site,
+#                     core.id,
+#                     pre.burn.total.carbon.g,
+#                     post.burn.total.carbon.g)),
+#         by= 'core.id') %>%
+#   dplyr::mutate(g.CO2C.per.pre.burn.g.C.per.day = g.CO2C.per.day/pre.burn.total.carbon.g)
+# 
+# 
+# 
+# # Create a variable with the order of the days for use in plotting later:
+# df.pre$sort_order <- df.pre$whole.days.since.wet.up
+# 
+# 
+
+df.respiration <- merge(df.resp.rate, subset(df.meta, select = c(core.id, site)))
+
+# Plot respiration per pre-burn initial C numbers. 
+p.resp.rate.pre = ggplot(subset(df.respiration, whole.days.since.wet.up < 10), 
+                     aes(x=reorder(as.character(whole.days.since.wet.up), sort_order), 
+                          color = as.character(burn.trtmt.duration.seconds),
+                          y = new.CO2C_g_respired), alpha = 0.5) + 
+  geom_point(alpha = 0.7) + 
+  # geom_jitter(alpha = 0.7, width = 0.2) + 
+  theme_bw() + 
+  scale_fill_manual(values = c(burn_duration_colors),
+                     labels = c(burn_duration_labels))+
+  scale_color_manual(values = c(burn_duration_colors),
+                     labels = c(burn_duration_labels))+
+  facet_wrap(~site.type, scales = 'free', 
+             labeller = labeller(site.type = SiteType_labels)) +
+  labs(x = 'Time (d)',
+       y = expression(Soil~respiration~rate~(g~C-CO[2]~day^{"-1"})), 
+       color = 'Burn treatment:') + 
+  theme(legend.position = 'bottom',
+        strip.text = element_text(size = 10),
+        axis.text = element_text(size = 10),
+        axis.title = element_text(size = 10),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) 
+
+
+```
+
+
+
+
+
+## Stats for Methods:
+
+Statistical test for difference in maximum temperatures reached during burn treatments, controlling for site type: `r max.temp.test`
+
+Statistical test for difference in DH during burn treatments, controlling for site type: `r degree.hours.test`
+
+Statistical test for difference in pH by burn treatment (interaction with site type not significant and therefore not included): `r pH_test`
+
+Model for change in pH with DH: `r pH.with.DH.test`
+
+Statistical test for change in pH with time since burn (interaction with site type not significant and therefore not included): `r change.pH.with.time.since.burn.test`
+
+Statistical test for variation in C and N concentration between site types: `r C.and.N.test`
+
+Statistical test for variation in C:N ratio with burning: `r C.N.ratio.test`
+
+Model for change in C:N with DH: `r CN.with.DH.test`
+
+Statistical test for C respired with burn treatment (interaction with site type not significant and therefore not included): `r C_resp_test`
+
+Statistical test for difference in decay model coefficients with burning: `r resp_test`
+
+
+
+## Discussion
+
+
+## Conclusion
+
+## Declarations
+
+## Acknowledgements
+
+## References
+
+## Figures
+```{r, echo=FALSE}
+# Figure_Temp_Profiles_and_DH
+# 
+# paste('Figure',Figure_number_Temp_Profiles_and_DH)
+# 
+# Figure_soil_pH_2days_postburn
+# 
+# paste('Figure', Figure_number_soil_pH_2days_postburn)
+# 
+# Figure_soil_CN_ratio
+# 
+# paste('Figure',Figure_number_soil_CN_ratio)
+# 
+# Figure_decay_coefs
+# 
+# paste('Figure', Figure_number_decay_coefs)
+# 
+
+```
+
